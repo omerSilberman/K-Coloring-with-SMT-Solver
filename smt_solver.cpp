@@ -24,6 +24,9 @@ int main(int argc, char** argv) {
     string filename = argv[1];
     int K = stoi(argv[2]);
 
+    // Check if user requested model generation
+    bool produce_model = (argc >= 4 && string(argv[3]) == "--model");
+
     int num_nodes = 0;
     int num_edges = 0;
     vector<Edge> edges;
@@ -60,7 +63,10 @@ int main(int argc, char** argv) {
     try {
         // 3. Initialize the SMT solver with QF_LIA (Linear Integer Arithmetic)
         smt::SmtSolver solver = smt::Cvc5SolverFactory::create(false);
-        solver->set_opt("produce-models", "true");
+        // Enable model production inside cvc5 if flag is set
+        if (produce_model) {
+            solver->set_opt("produce-models", "true");
+        }
         solver->set_logic("QF_LIA");
         
         // Define the Integer sort (type)
@@ -103,14 +109,13 @@ int main(int argc, char** argv) {
             cout << "s sat" << endl;
             cout << "s col " << K << endl;
             
-            // Print the assignments: v <color1> <color2> ...
-            cout << "v ";
-            for (int i = 1; i <= num_nodes; ++i) {
-                smt::Term val = solver->get_value(node_vars[i]);
-                // to_string() safely extracts the integer value as a string from the term
-                cout << val->to_string() << " "; 
+            if (produce_model) {
+            cout << "MODEL: ";
+            for (int i = 1; i <= num_nodes; i++) {
+                cout << solver->get_value(node_vars[i])->to_string() << " ";
             }
             cout << endl;
+        }
         } else if (res.is_unsat()) {
             cout << "s unsat" << endl;
         } else {

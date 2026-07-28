@@ -17,6 +17,8 @@ int main(int argc, char** argv) {
 
     string filename = argv[1];
     int K = stoi(argv[2]);
+    // Check if user requested model generation
+    bool produce_model = (argc >= 4 && string(argv[3]) == "--model");
 
     // Parse DIMACS file
     ifstream infile(filename);
@@ -41,7 +43,10 @@ int main(int argc, char** argv) {
 
     // Initialize smt-switch cvc5 backend
     SmtSolver solver = Cvc5SolverFactory::create(false);
-    solver->set_opt("produce-models", "true");
+    // Enable model production inside cvc5 if flag is set
+    if (produce_model) {
+        solver->set_opt("produce-models", "true");
+    }
     solver->set_logic("QF_LIA");
     Sort int_sort = solver->make_sort(INT);
 
@@ -66,23 +71,45 @@ int main(int argc, char** argv) {
     }
 
     // ---------------------------------------------------------
-    // SYMMETRY BREAKING CONSTRAINTS
+    // CLIQUE SYMMETRY BREAKING CONSTRAINTS
     // ---------------------------------------------------------
     if (num_nodes >= 1 && K >= 1) {
-        // 1. Force Node 1 to always be Color 1
-        Term force_c1 = solver->make_term(Equal, colors[1], solver->make_term(1, int_sort));
-        solver->assert_formula(force_c1);
+        // 1. Build an adjacency matrix for fast O(1) edge lookups
+        vector<vector<bool>> adj(num_nodes + 1, vector<bool>(num_nodes + 1, false));
+        for (auto edge : edges) {
+            adj[edge.first][edge.second] = true;
+            adj[edge.second][edge.first] = true;
+        }
 
-        // 2. Find the first neighbor of Node 1 and force it to be Color 2
-        if (K >= 2) {
-            for (auto edge : edges) {
-                if (edge.first == 1 || edge.second == 1) {
-                    int neighbor = (edge.first == 1) ? edge.second : edge.first;
-                    Term force_c2 = solver->make_term(Equal, colors[neighbor], solver->make_term(2, int_sort));
-                    solver->assert_formula(force_c2);
-                    break; // Only break symmetry for the first neighbor found
+        // 2. Find a maximal clique using a greedy approach
+        vector<int> clique;
+        for (int i = 1; i <= num_nodes; i++) {
+            bool connected_to_all = true;
+            for (int v : clique) {
+                if (!adj[i][v]) {
+                    connected_to_all = false;
+                    break;
                 }
             }
+            
+            if (connected_to_all) {
+                clique.push_back(i);
+                // We only have K colors. If the clique size reaches K, we stop.
+                // (If a clique is strictly larger than K, the graph is mathematically UNSAT).
+                if (clique.size() == static_cast<size_t>(K)) {
+                    break; 
+                }
+            }
+        }
+
+        // 3. Lock the colors of the clique nodes
+        // Node 1 in clique -> Color 1
+        // Node 2 in clique -> Color 2, etc.
+        for (size_t i = 0; i < clique.size(); i++) {
+            int node = clique[i];
+            int assigned_color = i + 1;
+            Term force_color = solver->make_term(Equal, colors[node], solver->make_term(assigned_color, int_sort));
+            solver->assert_formula(force_color);
         }
     }
     // ---------------------------------------------------------
@@ -91,6 +118,13 @@ int main(int argc, char** argv) {
     Result res = solver->check_sat();
     if (res.is_sat()) {
         cout << "SAT" << endl;
+         if (produce_model) {
+            cout << "MODEL: ";
+            for (int i = 1; i <= num_nodes; i++) {
+                cout << solver->get_value(colors[i])->to_string() << " ";
+            }
+            cout << endl;
+        }
     } else if (res.is_unsat()) {
         cout << "UNSAT" << endl;
     } else {
