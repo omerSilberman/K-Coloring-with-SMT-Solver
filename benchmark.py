@@ -19,8 +19,6 @@ except ImportError:
     print("Error: Missing ortools library. Please run: pip3 install ortools")
     sys.exit(1)
 
-SOTA_BIN = "/root/coloringsolver/install/bin/coloringsolver"
-LIB_PATH = "/usr/local/lib"
 DEFAULT_TIMEOUT = 20.0
 
 class DualLogger:
@@ -67,23 +65,6 @@ def generate_small_benchmarks():
                 for u, v in G.edges():
                     f.write(f"e {u+1} {v+1}\n")
 
-def run_sota_solver(graph_path):
-    start = time.time()
-    cmd = [SOTA_BIN, "--input", graph_path, "--algorithm", "greedy-dsatur"]
-    result = subprocess.run(cmd, capture_output=True, text=True)
-    duration = time.time() - start
-    
-    k_val = "N/A"
-    full_output = result.stdout + "\n" + result.stderr 
-    
-    for line in full_output.split('\n'):
-        line = line.strip()
-        if line.startswith("Number of colors:"):
-            k_val = line.split(":")[1].strip()
-            break
-            
-    return k_val, duration
-
 def run_academic_solver(binary_path, graph_path, k, produce_model, timeout):
     start = time.time()
     cmd = [binary_path, "--bound", str(k), graph_path]
@@ -124,12 +105,9 @@ def run_smt(binary_path, graph_path, k, produce_model, timeout):
         
     if produce_model:
         cmd.append("--model")
-        
-    env = os.environ.copy()
-    env["LD_LIBRARY_PATH"] = LIB_PATH
-        
+
     try:
-        result = subprocess.run(cmd, env=env, capture_output=True, text=True, timeout=timeout)
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
         duration = time.time() - start
         
         status, model_str = "UNKNOWN", ""
@@ -252,7 +230,7 @@ def main():
     results_models = []
     
     # Table Header with Nodes and Edges columns
-    header = f"{'Graph':<22} | {'Nodes':<6} | {'Edges':<8} | {'K':<4} | {'SOTA Time':<10} | {'SOTA K':<8}"
+    header = f"{'Graph':<22} | {'Nodes':<6} | {'Edges':<8} | {'K':<4}"
     for solver in SMT_SOLVERS:
         header += f" | {solver['name']:<10}"
         
@@ -263,8 +241,6 @@ def main():
     nodes_list = []
     edges_list = []
     target_k_list = []
-    sota_times = []
-    sota_k_list = []
     solver_runtimes = {solver['name']: [] for solver in SMT_SOLVERS}
     solver_solved = {solver['name']: 0 for solver in SMT_SOLVERS}
     
@@ -275,19 +251,13 @@ def main():
         filename = os.path.basename(graph_path)
         nodes, edges = get_graph_stats(graph_path)
         
-        s_k, s_t = run_sota_solver(graph_path)
-        s_t_str = f"{s_t:.4f}s"
-        
         total_tested += 1
         nodes_list.append(nodes)
         edges_list.append(edges)
         target_k_list.append(k)
-        sota_times.append(s_t)
-        if s_k.isdigit():
-            sota_k_list.append(int(s_k))
         
-        # Live-stream prefix with Graph, Nodes, Edges, K, and SOTA stats
-        row_prefix = f"{filename:<22} | {nodes:<6} | {edges:<8} | {k:<4} | {s_t_str:<10} | {s_k:<8}"
+        # Live-stream prefix with Graph, Nodes, Edges and K
+        row_prefix = f"{filename:<22} | {nodes:<6} | {edges:<8} | {k:<4}"
         print(row_prefix, end="", flush=True)
         
         graph_models = {}
@@ -330,17 +300,15 @@ def main():
         avg_nodes = sum(nodes_list) / total_tested
         avg_edges = sum(edges_list) / total_tested
         avg_target_k = sum(target_k_list) / total_tested
-        avg_sota_t = sum(sota_times) / total_tested
-        avg_sota_k_str = f"{sum(sota_k_list) / len(sota_k_list):.1f}" if sota_k_list else "N/A"
         
-        avg_row_str = f"{'AVERAGE':<22} | {f'{avg_nodes:.1f}':<6} | {f'{avg_edges:.1f}':<8} | {f'{avg_target_k:.1f}':<4} | {f'{avg_sota_t:.4f}s':<10} | {avg_sota_k_str:<8}"
+        avg_row_str = f"{'AVERAGE':<22} | {f'{avg_nodes:.1f}':<6} | {f'{avg_edges:.1f}':<8} | {f'{avg_target_k:.1f}':<4}"
         for solver in SMT_SOLVERS:
             runtimes = solver_runtimes[solver['name']]
             avg_r = sum(runtimes) / len(runtimes) if runtimes else 0.0
             avg_row_str += f" | {f'{avg_r:.3f}s':<10}"
         print(avg_row_str)
         
-        solved_row_str = f"{'SOLVED / TOTAL':<22} | {'-':<6} | {'-':<8} | {'-':<4} | {'-':<10} | {'-':<8}"
+        solved_row_str = f"{'SOLVED / TOTAL':<22} | {'-':<6} | {'-':<8} | {'-':<4}"
         for solver in SMT_SOLVERS:
             solved_count = solver_solved[solver['name']]
             solved_row_str += f" | {f'{solved_count}/{total_tested}':<10}"

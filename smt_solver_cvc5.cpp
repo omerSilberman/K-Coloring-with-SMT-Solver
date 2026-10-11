@@ -95,13 +95,15 @@ protected:
             cout << "node_" << i << ": " << solver.getValue(node_vars[i]).toString() << " ";
         }
 }
+    // The two endpoints of an edge get different colors (u != v unless overridden)
+    virtual cvc5::Term edge_constraint(const cvc5::Term& u, const cvc5::Term& v) {
+        return tm.mkTerm(cvc5::Kind::NOT, {tm.mkTerm(cvc5::Kind::EQUAL, {u, v})});
+    }
 
 private:
     void build_universal_edge_constraints() {
         for (const auto& edge : edges) {
-            cvc5::Term u_eq_v = tm.mkTerm(cvc5::Kind::EQUAL, {node_vars[edge.first], node_vars[edge.second]});
-            cvc5::Term u_neq_v = tm.mkTerm(cvc5::Kind::NOT, {u_eq_v});
-            solver.assertFormula(u_neq_v);
+            solver.assertFormula(edge_constraint(node_vars[edge.first], node_vars[edge.second]));
         }
     }
 };
@@ -128,14 +130,63 @@ protected:
 };
 
 // ============================================================================
+// INTEGER DIFFERENCE LOGIC (IDL)
+// ============================================================================
+// Same idea as LIA, but every atom must have the form x - y <op> c.
+// A plain bound like x >= 1 is not a difference, so it is written against
+// an extra "zero" variable: x - zero >= 1 and x - zero <= K.
+// IDL is shift-invariant, so the color of node i is node_i - zero.
+class IdlColorer : public AbstractGraphColorer {
+private:
+    cvc5::Term zero;
+public:
+    using AbstractGraphColorer::AbstractGraphColorer;
+protected:
+    void configure_theory() override { solver.setLogic("QF_IDL"); }
+    void build_variables_and_bounds() override {
+        cvc5::Sort int_sort = tm.getIntegerSort();
+        cvc5::Term one = tm.mkInteger(1);
+        cvc5::Term k_term = tm.mkInteger(K);
+        zero = tm.mkConst(int_sort, "zero");
+
+        for (int i = 1; i <= num_nodes; ++i) {
+            node_vars[i] = tm.mkConst(int_sort, "node_" + to_string(i));
+            cvc5::Term diff = tm.mkTerm(cvc5::Kind::SUB, {node_vars[i], zero});
+            solver.assertFormula(tm.mkTerm(cvc5::Kind::GEQ, {diff, one}));
+            solver.assertFormula(tm.mkTerm(cvc5::Kind::LEQ, {diff, k_term}));
+        }
+    }
+    void print_model() override {
+        // Print the shifted values so the colors are in 1..K like the other theories
+        cvc5::Term zero_val = solver.getValue(zero);
+        for (int i = 1; i <= num_nodes; i++) {
+            cvc5::Term color = tm.mkTerm(cvc5::Kind::SUB, {solver.getValue(node_vars[i]), zero_val});
+            cout << "node_" << i << ": " << solver.simplify(color).toString() << " ";
+        }
+    }
+};
+
+// ============================================================================
 // 3. BIT-VECTOR (BV)
 // ============================================================================
+// Colors 1..K: 1 <=u x <=u K, at the smallest width that holds K.
+// When K = 2^w (K >= 2) the sort has exactly K values, so width w and no bounds.
 class BvColorer : public AbstractGraphColorer {
 public:
     using AbstractGraphColorer::AbstractGraphColorer;
 protected:
     void configure_theory() override { solver.setLogic("QF_BV"); }
     void build_variables_and_bounds() override {
+        if (K >= 2 && (K & (K - 1)) == 0) {
+            int width = 0;
+            while ((1 << width) < K) { width++; }
+            cvc5::Sort bv_sort = tm.mkBitVectorSort(width);
+            for (int i = 1; i <= num_nodes; i++) {
+                node_vars[i] = tm.mkConst(bv_sort, "node_" + to_string(i));
+            }
+            return;
+        }
+
         int width = 1;
         while ((1 << width) - 1 < K) { width++; }
         cvc5::Sort bv_sort = tm.mkBitVectorSort(width);
@@ -147,6 +198,103 @@ protected:
             solver.assertFormula(tm.mkTerm(cvc5::Kind::BITVECTOR_UGE, {node_vars[i], one}));
             solver.assertFormula(tm.mkTerm(cvc5::Kind::BITVECTOR_ULE, {node_vars[i], k_term}));
         }
+    }
+};
+
+// Colors 0..K-1: only the upper bound x <=u K-1 (the lower bound 0 is free),
+// at the smallest width w with 2^w >= K. When K = 2^w (K >= 2), no bound at all.
+class BvZeroColorer : public AbstractGraphColorer {
+public:
+    using AbstractGraphColorer::AbstractGraphColorer;
+protected:
+    void configure_theory() override { solver.setLogic("QF_BV"); }
+    void build_variables_and_bounds() override {
+        int width = 1;
+        while ((1 << width) < K) { width++; }
+        cvc5::Sort bv_sort = tm.mkBitVectorSort(width);
+        bool needs_bound = (1 << width) != K;
+        cvc5::Term max_term = tm.mkBitVector(width, K - 1);
+
+        for (int i = 1; i <= num_nodes; i++) {
+            node_vars[i] = tm.mkConst(bv_sort, "node_" + to_string(i));
+            if (needs_bound) {
+                solver.assertFormula(tm.mkTerm(cvc5::Kind::BITVECTOR_ULE, {node_vars[i], max_term}));
+            }
+        }
+    }
+};
+
+// ============================================================================
+// BIT-VECTOR (Bitwise AND masks)
+// ============================================================================
+// Width w is the smallest with 2^w >= K, and E = 2^w - K values must be excluded.
+// A literal (x & M) != 0 excludes exactly the values with 0 in every bit of M,
+// i.e. the submasks of ~M. We exclude {0, ..., E-1}: a submask of n is <= n, so
+// this set is closed under submasks and is the union of the submasks of its
+// maximal elements. Each 1-bit b of E gives one maximal element
+//   a_b = (E with bits b..0 cleared) | (2^b - 1)
+// and one literal (x & ~a_b) != 0. The colors left are E, ..., 2^w - 1.
+// K = 2^w needs no literal; K = 2^w - 2^j needs one; never more than w - 1.
+class BvAndColorer : public AbstractGraphColorer {
+public:
+    using AbstractGraphColorer::AbstractGraphColorer;
+protected:
+    void configure_theory() override { solver.setLogic("QF_BV"); }
+    void build_variables_and_bounds() override {
+        int width = 1;
+        while ((1 << width) < K) { width++; }
+        int full = (1 << width) - 1;
+        int excluded = (1 << width) - K;
+
+        cvc5::Sort bv_sort = tm.mkBitVectorSort(width);
+        cvc5::Term zero = tm.mkBitVector(width, 0);
+        vector<cvc5::Term> masks;
+        for (int b = 0; b < width; b++) {
+            if (excluded >> b & 1) {
+                int maximal = ((excluded >> (b + 1)) << (b + 1)) | ((1 << b) - 1);
+                masks.push_back(tm.mkBitVector(width, full & ~maximal));
+            }
+        }
+
+        for (int i = 1; i <= num_nodes; i++) {
+            node_vars[i] = tm.mkConst(bv_sort, "node_" + to_string(i));
+            for (const auto& mask : masks) {
+                cvc5::Term masked = tm.mkTerm(cvc5::Kind::BITVECTOR_AND, {node_vars[i], mask});
+                solver.assertFormula(tm.mkTerm(cvc5::Kind::DISTINCT, {masked, zero}));
+            }
+        }
+    }
+};
+
+// ============================================================================
+// BIT-VECTOR (One-hot colors)
+// ============================================================================
+// Width K, and color c is the vector with only bit c set:
+//   x != 0 and (x & (x - 1)) = 0   (x - 1 clears the lowest set bit, so the AND
+//                                    is 0 iff x had at most one set bit)
+// Two one-hot vectors differ iff they share no bit, so edges are (u & v) = 0.
+class BvOneHotColorer : public AbstractGraphColorer {
+public:
+    using AbstractGraphColorer::AbstractGraphColorer;
+protected:
+    void configure_theory() override { solver.setLogic("QF_BV"); }
+    void build_variables_and_bounds() override {
+        cvc5::Sort bv_sort = tm.mkBitVectorSort(K);
+        cvc5::Term zero = tm.mkBitVector(K, 0);
+        cvc5::Term one = tm.mkBitVector(K, 1);
+
+        for (int i = 1; i <= num_nodes; i++) {
+            node_vars[i] = tm.mkConst(bv_sort, "node_" + to_string(i));
+            cvc5::Term x = node_vars[i];
+            solver.assertFormula(tm.mkTerm(cvc5::Kind::DISTINCT, {x, zero}));
+            cvc5::Term x_minus_1 = tm.mkTerm(cvc5::Kind::BITVECTOR_SUB, {x, one});
+            cvc5::Term lowest_cleared = tm.mkTerm(cvc5::Kind::BITVECTOR_AND, {x, x_minus_1});
+            solver.assertFormula(tm.mkTerm(cvc5::Kind::EQUAL, {lowest_cleared, zero}));
+        }
+    }
+    cvc5::Term edge_constraint(const cvc5::Term& u, const cvc5::Term& v) override {
+        cvc5::Term shared = tm.mkTerm(cvc5::Kind::BITVECTOR_AND, {u, v});
+        return tm.mkTerm(cvc5::Kind::EQUAL, {shared, tm.mkBitVector(K, 0)});
     }
 };
 
@@ -172,6 +320,218 @@ protected:
             cvc5::Term polynomial = tm.mkTerm(cvc5::Kind::MULT, roots);
             solver.assertFormula(tm.mkTerm(cvc5::Kind::EQUAL, {polynomial, zero}));
         }
+    }
+};
+
+// ============================================================================
+// NON-LINEAR REAL ARITHMETIC + TRANSCENDENTALS (Roots of a trig function)
+// ============================================================================
+// Each node is a real x with f(x) = 0, boxed so the box holds exactly K roots.
+// The roots of f are evenly spaced, `step` apart, starting at `offset`:
+//   sin       roots at n*pi          (step pi,   offset 0)
+//   cos       roots at pi/2 + n*pi   (step pi,   offset pi/2)
+//   sin*cos   roots at n*pi/2        (step pi/2, offset 0)
+// The box is offset + [-lo*step, hi*step] with lo + hi = K - 1,
+// e.g. K = 7 with sin gives -3pi <= x <= 3pi.
+class TrigColorer : public AbstractGraphColorer {
+public:
+    using AbstractGraphColorer::AbstractGraphColorer;
+protected:
+    cvc5::Term pi;
+
+    virtual cvc5::Term trig_function(const cvc5::Term& x) = 0;
+    virtual cvc5::Term root_step() { return pi; }
+    virtual cvc5::Term root_offset() { return tm.mkReal("0"); }
+
+    void configure_theory() override { solver.setLogic("QF_NRAT"); }
+    void build_variables_and_bounds() override {
+        cvc5::Sort real_sort = tm.getRealSort();
+        cvc5::Term zero = tm.mkReal("0");
+        pi = tm.mkPi();
+
+        int lo = (K - 1) / 2;
+        int hi = (K - 1) - lo;
+        cvc5::Term step = root_step();
+        cvc5::Term offset = root_offset();
+        cvc5::Term lower = tm.mkTerm(cvc5::Kind::SUB,
+            {offset, tm.mkTerm(cvc5::Kind::MULT, {tm.mkReal(to_string(lo)), step})});
+        cvc5::Term upper = tm.mkTerm(cvc5::Kind::ADD,
+            {offset, tm.mkTerm(cvc5::Kind::MULT, {tm.mkReal(to_string(hi)), step})});
+
+        for (int i = 1; i <= num_nodes; i++) {
+            node_vars[i] = tm.mkConst(real_sort, "node_" + to_string(i));
+            solver.assertFormula(tm.mkTerm(cvc5::Kind::GEQ, {node_vars[i], lower}));
+            solver.assertFormula(tm.mkTerm(cvc5::Kind::LEQ, {node_vars[i], upper}));
+            solver.assertFormula(tm.mkTerm(cvc5::Kind::EQUAL, {trig_function(node_vars[i]), zero}));
+        }
+    }
+};
+
+class SinColorer : public TrigColorer {
+public:
+    using TrigColorer::TrigColorer;
+protected:
+    cvc5::Term trig_function(const cvc5::Term& x) override {
+        return tm.mkTerm(cvc5::Kind::SINE, {x});
+    }
+};
+
+class CosColorer : public TrigColorer {
+public:
+    using TrigColorer::TrigColorer;
+protected:
+    cvc5::Term trig_function(const cvc5::Term& x) override {
+        return tm.mkTerm(cvc5::Kind::COSINE, {x});
+    }
+    cvc5::Term root_offset() override {
+        return tm.mkTerm(cvc5::Kind::DIVISION, {pi, tm.mkReal("2")});
+    }
+};
+
+class SinCosColorer : public TrigColorer {
+public:
+    using TrigColorer::TrigColorer;
+protected:
+    cvc5::Term trig_function(const cvc5::Term& x) override {
+        return tm.mkTerm(cvc5::Kind::MULT,
+            {tm.mkTerm(cvc5::Kind::SINE, {x}), tm.mkTerm(cvc5::Kind::COSINE, {x})});
+    }
+    cvc5::Term root_step() override {
+        return tm.mkTerm(cvc5::Kind::DIVISION, {pi, tm.mkReal("2")});
+    }
+};
+
+// ============================================================================
+// NON-LINEAR REAL ARITHMETIC + TRANSCENDENTALS (Integer roots of sin(pi*x))
+// ============================================================================
+// sin(pi*x) = 0 exactly when x is an integer, so the colors are rational:
+// x is boxed to [-lo, hi] with lo + hi = K - 1, e.g. K = 3 gives -1 <= x <= 1.
+class SinPiColorer : public AbstractGraphColorer {
+public:
+    using AbstractGraphColorer::AbstractGraphColorer;
+protected:
+    void configure_theory() override { solver.setLogic("QF_NRAT"); }
+    void build_variables_and_bounds() override {
+        cvc5::Sort real_sort = tm.getRealSort();
+        cvc5::Term zero = tm.mkReal("0");
+        cvc5::Term pi = tm.mkPi();
+
+        int lo = (K - 1) / 2;
+        int hi = (K - 1) - lo;
+        cvc5::Term lower = tm.mkReal(to_string(-lo));
+        cvc5::Term upper = tm.mkReal(to_string(hi));
+
+        for (int i = 1; i <= num_nodes; i++) {
+            node_vars[i] = tm.mkConst(real_sort, "node_" + to_string(i));
+            solver.assertFormula(tm.mkTerm(cvc5::Kind::GEQ, {node_vars[i], lower}));
+            solver.assertFormula(tm.mkTerm(cvc5::Kind::LEQ, {node_vars[i], upper}));
+            cvc5::Term arg = tm.mkTerm(cvc5::Kind::MULT, {pi, node_vars[i]});
+            solver.assertFormula(tm.mkTerm(cvc5::Kind::EQUAL, {tm.mkTerm(cvc5::Kind::SINE, {arg}), zero}));
+        }
+    }
+};
+
+// ============================================================================
+// FINITE FIELDS (GF(p), p prime - cvc5 needs to be built with --cocoa)
+// ============================================================================
+static bool is_prime(int n) {
+    if (n < 2) return false;
+    for (int d = 2; d * d <= n; d++) {
+        if (n % d == 0) return false;
+    }
+    return true;
+}
+
+class FiniteFieldColorer : public AbstractGraphColorer {
+public:
+    using AbstractGraphColorer::AbstractGraphColorer;
+protected:
+    int p = 0;
+    cvc5::Sort ff_sort;
+
+    // The field size to use for this K
+    virtual int choose_modulus() = 0;
+    // Constraint restricting x to K of the p field elements (null term = no constraint)
+    virtual cvc5::Term domain_constraint(const cvc5::Term& x) = 0;
+
+    cvc5::Term ff_const(int value) {
+        return tm.mkFiniteFieldElem(to_string(((value % p) + p) % p), ff_sort);
+    }
+
+    void configure_theory() override { solver.setLogic("QF_FF"); }
+    void build_variables_and_bounds() override {
+        p = choose_modulus();
+        ff_sort = tm.mkFiniteFieldSort(to_string(p));
+
+        for (int i = 1; i <= num_nodes; i++) {
+            node_vars[i] = tm.mkConst(ff_sort, "node_" + to_string(i));
+            cvc5::Term constraint = domain_constraint(node_vars[i]);
+            if (!constraint.isNull()) {
+                solver.assertFormula(constraint);
+            }
+        }
+    }
+};
+
+// GF(K) itself: the sort has exactly K elements, so no domain constraint at all
+// (the paper's "finite domain of fixed size" colorer). Only works for prime K.
+class FfPrimeColorer : public FiniteFieldColorer {
+public:
+    using FiniteFieldColorer::FiniteFieldColorer;
+protected:
+    int choose_modulus() override {
+        if (!is_prime(K)) {
+            throw runtime_error("FF-PRIME needs a prime K (got " + to_string(K) + ")");
+        }
+        return K;
+    }
+    cvc5::Term domain_constraint(const cvc5::Term&) override { return cvc5::Term(); }
+};
+
+// GF(p) with p the smallest prime >= K, and (x - 0)(x - 1)...(x - (K-1)) = 0.
+// A field has no zero divisors, so the product is 0 iff x is one of 0..K-1.
+// When p == K this is x^p - x, which holds for every x (Fermat).
+class FfPolyColorer : public FiniteFieldColorer {
+public:
+    using FiniteFieldColorer::FiniteFieldColorer;
+protected:
+    int choose_modulus() override {
+        int q = max(K, 2);
+        while (!is_prime(q)) q++;
+        return q;
+    }
+    cvc5::Term domain_constraint(const cvc5::Term& x) override {
+        vector<cvc5::Term> factors;
+        for (int j = 0; j < K; j++) {
+            factors.push_back(j == 0 ? x : tm.mkTerm(cvc5::Kind::FINITE_FIELD_ADD, {x, ff_const(-j)}));
+        }
+        cvc5::Term product = (K == 1) ? factors[0] : tm.mkTerm(cvc5::Kind::FINITE_FIELD_MULT, factors);
+        return tm.mkTerm(cvc5::Kind::EQUAL, {product, ff_const(0)});
+    }
+};
+
+// GF(p) with p the smallest prime s.t. K divides p - 1, and x^K = 1.
+// The nonzero elements form a cyclic group of order p - 1, so x^K = 1 has
+// exactly K solutions: the K-th roots of unity (e.g. K = 3, p = 7 gives {1, 2, 4}).
+class FfRootsColorer : public FiniteFieldColorer {
+public:
+    using FiniteFieldColorer::FiniteFieldColorer;
+protected:
+    int choose_modulus() override {
+        int q = K + 1;
+        while (!is_prime(q)) q += K;
+        return q;
+    }
+    cvc5::Term domain_constraint(const cvc5::Term& x) override {
+        // x^K by repeated squaring
+        cvc5::Term result, square = x;
+        for (int e = K; e > 0; e >>= 1) {
+            if (e & 1) {
+                result = result.isNull() ? square : tm.mkTerm(cvc5::Kind::FINITE_FIELD_MULT, {result, square});
+            }
+            if (e > 1) square = tm.mkTerm(cvc5::Kind::FINITE_FIELD_MULT, {square, square});
+        }
+        return tm.mkTerm(cvc5::Kind::EQUAL, {result, ff_const(1)});
     }
 };
 
@@ -383,6 +743,12 @@ protected:
             
             solver.assertFormula(tm.mkTerm(cvc5::Kind::GEQ, {node_as_int, one}));
             solver.assertFormula(tm.mkTerm(cvc5::Kind::LEQ, {node_as_int, k_term}));
+
+            // Force the canonical spelling (no leading zeros), otherwise "2" and "02"
+            // would be two different colors with the same integer value.
+            // str.from_int returns a String, so this is a String = String equality.
+            cvc5::Term canonical = tm.mkTerm(cvc5::Kind::STRING_FROM_INT, {node_as_int});
+            solver.assertFormula(tm.mkTerm(cvc5::Kind::EQUAL, {node_vars[i], canonical}));
         }
     }
 };
@@ -432,6 +798,58 @@ protected:
             node_vars[i] = tm.mkConst(str_sort, "node_" + to_string(i));
             solver.assertFormula(tm.mkTerm(cvc5::Kind::STRING_IN_REGEXP, {node_vars[i], re_union}));
         }
+    }
+};
+
+// ============================================================================
+// THEORY OF STRINGS (Substrings of a word with exactly K distinct substrings)
+// ============================================================================
+#ifndef SUBSTRING_TABLE_PATH
+#define SUBSTRING_TABLE_PATH "substring_strings.txt"
+#endif
+
+class StringSubstringColorer : public AbstractGraphColorer {
+private:
+    string word;
+
+    // Looks K up in the table written by gen_substring_strings.py ("K string" per line).
+    // Outside the table, 'a' repeated K-1 times has exactly K distinct substrings
+    // ("", "a", ..., "a"*(K-1)).
+    string find_word() {
+        ifstream table(SUBSTRING_TABLE_PATH);
+        if (!table.is_open()) {
+            cerr << "Warning: could not open " << SUBSTRING_TABLE_PATH
+                 << ", using the fallback string" << endl;
+        }
+        string line;
+        while (getline(table, line)) {
+            if (line.empty() || line[0] == '#') continue;
+            stringstream ss(line);
+            int k;
+            string w; // stays empty for K = 1, whose only substring is ""
+            ss >> k >> w;
+            if (k == K) return w;
+        }
+        return string(K - 1, 'a');
+    }
+public:
+    using AbstractGraphColorer::AbstractGraphColorer;
+protected:
+    void configure_theory() override { solver.setLogic("QF_S"); }
+    void build_variables_and_bounds() override {
+        word = find_word();
+        cvc5::Sort str_sort = tm.getStringSort();
+        cvc5::Term word_term = tm.mkString(word);
+
+        // Every node is one of the K distinct substrings of the word (the empty string included)
+        for (int i = 1; i <= num_nodes; i++) {
+            node_vars[i] = tm.mkConst(str_sort, "node_" + to_string(i));
+            solver.assertFormula(tm.mkTerm(cvc5::Kind::STRING_CONTAINS, {word_term, node_vars[i]}));
+        }
+    }
+    void print_model() override {
+        AbstractGraphColorer::print_model();
+        cout << "word: \"" << word << "\"";
     }
 };
 
@@ -731,6 +1149,38 @@ protected:
     }
 };
 
+// Same as SET-MEM-BV, but the elements are K constants of an uninterpreted sort.
+// Unlike numerals, uninterpreted constants may be equal, so (distinct C1 ... CK) is asserted.
+class SetMemberUfColorer : public AbstractGraphColorer {
+public:
+    using AbstractGraphColorer::AbstractGraphColorer;
+protected:
+    void configure_theory() override { solver.setLogic("QF_UFFS"); }
+
+    void build_variables_and_bounds() override {
+        cvc5::Sort color_sort = tm.mkUninterpretedSort("Color");
+        cvc5::Sort set_sort = tm.mkSetSort(color_sort);
+
+        vector<cvc5::Term> colors;
+        for (int c = 1; c <= K; c++) {
+            colors.push_back(tm.mkConst(color_sort, "C" + to_string(c)));
+        }
+        if (K >= 2) {
+            solver.assertFormula(tm.mkTerm(cvc5::Kind::DISTINCT, colors));
+        }
+
+        // The domain set {C1, ..., CK}
+        vector<cvc5::Term> args = colors;
+        args.push_back(tm.mkEmptySet(set_sort));
+        cvc5::Term domain_set = tm.mkTerm(cvc5::Kind::SET_INSERT, args);
+
+        for (int i = 1; i <= num_nodes; i++) {
+            node_vars[i] = tm.mkConst(color_sort, "node_" + to_string(i));
+            solver.assertFormula(tm.mkTerm(cvc5::Kind::SET_MEMBER, {node_vars[i], domain_set}));
+        }
+    }
+};
+
 // ============================================================================
 // 13. MAIN ENTRY POINT (ROUTER)
 // ============================================================================
@@ -749,7 +1199,9 @@ int main(int argc, char** argv) {
             cout << "  --print-asserts  Print all asserted SMT formulas before solving" << endl;
             cout << "  --help, -h       Show this help message" << endl;
             cout << "\nAvailable Theories:" << endl;
-            cout << "  LIA, BV, NLRA, LIST-UF, LIST-DT, UF, STRING, STR-LEX, STR-INT, STR-REG, SET-CUBE" << endl;
+            cout << "  LIA, IDL, BV, BV-ZERO, BV-AND, BV-ONEHOT, NLRA, NLRA-SIN, NLRA-COS, NLRA-SINCOS, NLRA-SINPI," << endl;
+            cout << "  FF-PRIME, FF-POLY, FF-ROOTS, LIST-UF, LIST-DT, UF, STRING, STR-LEX, STR-INT, STR-REG, STR-SUB," << endl;
+            cout << "  SET-CUBE, SET-MEM, SET-MEM-BV, SET-MEM-UF, ARR-EXP, ARR-INL, ARR-MAP" << endl;
             return 0;
         } else if (arg == "--model") {
             produce_model = true;
@@ -783,10 +1235,32 @@ int main(int argc, char** argv) {
 
         if (theory == "LIA") {
             colorer = new LiaColorer(K, produce_model, print_asserts);
+        } else if (theory == "IDL") {
+            colorer = new IdlColorer(K, produce_model, print_asserts);
         } else if (theory == "BV") {
             colorer = new BvColorer(K, produce_model, print_asserts);
+        } else if (theory == "BV-ZERO") {
+            colorer = new BvZeroColorer(K, produce_model, print_asserts);
+        } else if (theory == "BV-AND") {
+            colorer = new BvAndColorer(K, produce_model, print_asserts);
+        } else if (theory == "BV-ONEHOT") {
+            colorer = new BvOneHotColorer(K, produce_model, print_asserts);
         } else if (theory == "NLRA") {
             colorer = new NlraColorer(K, produce_model, print_asserts);
+        } else if (theory == "NLRA-SIN") {
+            colorer = new SinColorer(K, produce_model, print_asserts);
+        } else if (theory == "NLRA-COS") {
+            colorer = new CosColorer(K, produce_model, print_asserts);
+        } else if (theory == "NLRA-SINCOS") {
+            colorer = new SinCosColorer(K, produce_model, print_asserts);
+        } else if (theory == "NLRA-SINPI") {
+            colorer = new SinPiColorer(K, produce_model, print_asserts);
+        } else if (theory == "FF-PRIME") {
+            colorer = new FfPrimeColorer(K, produce_model, print_asserts);
+        } else if (theory == "FF-POLY") {
+            colorer = new FfPolyColorer(K, produce_model, print_asserts);
+        } else if (theory == "FF-ROOTS") {
+            colorer = new FfRootsColorer(K, produce_model, print_asserts);
         } else if (theory == "LIST-UF") {
             colorer = new ListUfColorer(K, produce_model, print_asserts);
         } else if (theory == "LIST-DT") {
@@ -799,6 +1273,8 @@ int main(int argc, char** argv) {
             colorer = new StringLexColorer(K, produce_model, print_asserts); 
         } else if (theory == "STR-INT") {
             colorer = new StringIntColorer(K, produce_model, print_asserts); 
+        } else if (theory == "STR-SUB") {
+            colorer = new StringSubstringColorer(K, produce_model, print_asserts);
         } else if (theory == "STR-REG") {
             colorer = new StringRegexColorer(K, produce_model, print_asserts); 
         } else if (theory == "SET-CUBE") {
@@ -813,6 +1289,8 @@ int main(int argc, char** argv) {
             colorer = new SetMemberColorer(K, produce_model, print_asserts);
         } else if (theory == "SET-MEM-BV") {
             colorer = new SetMemberBvColorer(K, produce_model, print_asserts);
+        } else if (theory == "SET-MEM-UF") {
+            colorer = new SetMemberUfColorer(K, produce_model, print_asserts);
         } else {
             cerr << "Error: Unknown theory '" << theory << "'." << endl;
             return 1;

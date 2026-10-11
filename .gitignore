@@ -39,3 +39,4 @@ Thumbs.db
 
 logs/
 benchmarks/
+__pycache__/

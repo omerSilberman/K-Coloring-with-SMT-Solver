@@ -1,33 +1,199 @@
 {
-    "benchmarks/DIMACS/1-FullIns_3.col": 4,
-    "benchmarks/DIMACS/1-FullIns_4.col": 5,
-    "benchmarks/DIMACS/1-FullIns_5.col": 6,
-    "benchmarks/DIMACS/1-Insertions_4.col": 5,
-    "benchmarks/DIMACS/1-Insertions_5.col": 6,
-    "benchmarks/DIMACS/1-Insertions_6.col": 7,
-    "benchmarks/DIMACS/2-FullIns_3.col": 5,
-    "benchmarks/DIMACS/2-FullIns_4.col": 6,
-    "benchmarks/DIMACS/2-FullIns_5.col": 7,
-    "benchmarks/DIMACS/2-Insertions_3.col": 4,
-    "benchmarks/DIMACS/2-Insertions_4.col": 5,
-    "benchmarks/DIMACS/2-Insertions_5.col": 6,
-    "benchmarks/DIMACS/3-FullIns_3.col": 6,
-    "benchmarks/DIMACS/3-FullIns_4.col": 7,
-    "benchmarks/DIMACS/3-FullIns_5.col": 8,
-    "benchmarks/DIMACS/3-Insertions_3.col": 4,
-    "benchmarks/DIMACS/3-Insertions_4.col": 5,
-    "benchmarks/DIMACS/3-Insertions_5.col": 6,
-    "benchmarks/DIMACS/4-FullIns_3.col": 7,
-    "benchmarks/DIMACS/4-FullIns_4.col": 8,
-    "benchmarks/DIMACS/4-FullIns_5.col": 39,
-    "benchmarks/DIMACS/4-Insertions_3.col": 4,
-    "benchmarks/DIMACS/4-Insertions_4.col": 5,
-    "benchmarks/DIMACS/5-FullIns_3.col": 8,
-    "benchmarks/DIMACS/5-FullIns_4.col": 9,
-    "benchmarks/DIMACS/C125.9.clq": 60,
+    "benchmarks/DIMACS/1-FullIns_3.col": {
+        "k": 4,
+        "status": "OPTIMAL",
+        "source": "SAT",
+        "solver": "BV",
+        "timeout": 60.0
+    },
+    "benchmarks/DIMACS/1-FullIns_4.col": {
+        "k": 5,
+        "status": "OPTIMAL",
+        "source": "SAT",
+        "solver": "BV",
+        "timeout": 60.0
+    },
+    "benchmarks/DIMACS/1-FullIns_5.col": {
+        "k": 6,
+        "status": "OPTIMAL",
+        "source": "SAT",
+        "solver": "BV",
+        "timeout": 60.0
+    },
+    "benchmarks/DIMACS/1-Insertions_4.col": {
+        "k": 5,
+        "status": "OPTIMAL",
+        "source": "greedy",
+        "solver": "BV",
+        "timeout": 60.0
+    },
+    "benchmarks/DIMACS/1-Insertions_5.col": {
+        "k": 6,
+        "status": "FEASIBLE",
+        "source": "greedy",
+        "clique": 2,
+        "solver": "BV",
+        "timeout": 60.0
+    },
+    "benchmarks/DIMACS/1-Insertions_6.col": {
+        "k": 7,
+        "status": "FEASIBLE",
+        "source": "greedy",
+        "clique": 2,
+        "solver": "BV",
+        "timeout": 60.0
+    },
+    "benchmarks/DIMACS/2-FullIns_3.col": {
+        "k": 5,
+        "status": "OPTIMAL",
+        "source": "SAT",
+        "solver": "BV",
+        "timeout": 60.0
+    },
+    "benchmarks/DIMACS/2-FullIns_4.col": {
+        "k": 6,
+        "status": "OPTIMAL",
+        "source": "SAT",
+        "solver": "BV",
+        "timeout": 60.0
+    },
+    "benchmarks/DIMACS/2-FullIns_5.col": {
+        "k": 7,
+        "status": "OPTIMAL",
+        "source": "SAT",
+        "solver": "BV",
+        "timeout": 60.0
+    },
+    "benchmarks/DIMACS/2-Insertions_3.col": {
+        "k": 4,
+        "status": "OPTIMAL",
+        "source": "greedy",
+        "solver": "BV",
+        "timeout": 60.0
+    },
+    "benchmarks/DIMACS/2-Insertions_4.col": {
+        "k": 5,
+        "status": "FEASIBLE",
+        "source": "greedy",
+        "clique": 2,
+        "solver": "BV",
+        "timeout": 60.0
+    },
+    "benchmarks/DIMACS/2-Insertions_5.col": {
+        "k": 6,
+        "status": "FEASIBLE",
+        "source": "greedy",
+        "clique": 2,
+        "solver": "BV",
+        "timeout": 60.0
+    },
+    "benchmarks/DIMACS/3-FullIns_3.col": {
+        "k": 6,
+        "status": "OPTIMAL",
+        "source": "SAT",
+        "solver": "BV",
+        "timeout": 60.0
+    },
+    "benchmarks/DIMACS/3-FullIns_4.col": {
+        "k": 7,
+        "status": "OPTIMAL",
+        "source": "SAT",
+        "solver": "BV",
+        "timeout": 60.0
+    },
+    "benchmarks/DIMACS/3-FullIns_5.col": {
+        "k": 8,
+        "status": "FEASIBLE",
+        "source": "SAT",
+        "clique": 5,
+        "solver": "BV",
+        "timeout": 60.0
+    },
+    "benchmarks/DIMACS/3-Insertions_3.col": {
+        "k": 4,
+        "status": "OPTIMAL",
+        "source": "greedy",
+        "solver": "BV",
+        "timeout": 60.0
+    },
+    "benchmarks/DIMACS/3-Insertions_4.col": {
+        "k": 5,
+        "status": "FEASIBLE",
+        "source": "greedy",
+        "clique": 2,
+        "solver": "BV",
+        "timeout": 60.0
+    },
+    "benchmarks/DIMACS/3-Insertions_5.col": {
+        "k": 6,
+        "status": "FEASIBLE",
+        "source": "greedy",
+        "clique": 2,
+        "solver": "BV",
+        "timeout": 60.0
+    },
+    "benchmarks/DIMACS/4-FullIns_3.col": {
+        "k": 7,
+        "status": "OPTIMAL",
+        "source": "SAT",
+        "solver": "BV",
+        "timeout": 60.0
+    },
+    "benchmarks/DIMACS/4-FullIns_4.col": {
+        "k": 8,
+        "status": "OPTIMAL",
+        "source": "SAT",
+        "solver": "BV",
+        "timeout": 60.0
+    },
+    "benchmarks/DIMACS/4-FullIns_5.col": {
+        "k": 9,
+        "status": "FEASIBLE",
+        "source": "SAT",
+        "clique": 6,
+        "solver": "BV",
+        "timeout": 60.0
+    },
+    "benchmarks/DIMACS/4-Insertions_3.col": {
+        "k": 4,
+        "status": "OPTIMAL",
+        "source": "greedy",
+        "solver": "BV",
+        "timeout": 60.0
+    },
+    "benchmarks/DIMACS/4-Insertions_4.col": {
+        "k": 5,
+        "status": "FEASIBLE",
+        "source": "greedy",
+        "clique": 2,
+        "solver": "BV",
+        "timeout": 60.0
+    },
+    "benchmarks/DIMACS/5-FullIns_3.col": {
+        "k": 8,
+        "status": "OPTIMAL",
+        "source": "SAT",
+        "solver": "BV",
+        "timeout": 60.0
+    },
+    "benchmarks/DIMACS/5-FullIns_4.col": {
+        "k": 9,
+        "status": "OPTIMAL",
+        "source": "SAT",
+        "solver": "BV",
+        "timeout": 60.0
+    },
     "benchmarks/DIMACS/C1000.9.clq": {
         "k": null,
         "status": "SKIPPED_TOO_LARGE"
+    },
+    "benchmarks/DIMACS/C125.9.clq": {
+        "k": 47,
+        "status": "FEASIBLE",
+        "source": "SAT",
+        "clique": 33,
+        "solver": "BV",
+        "timeout": 60.0
     },
     "benchmarks/DIMACS/C2000.5.clq": {
         "k": null,
@@ -38,20 +204,32 @@
         "status": "SKIPPED_TOO_LARGE"
     },
     "benchmarks/DIMACS/C250.9.clq": {
-        "k": null,
-        "status": "SKIPPED_TOO_LARGE"
+        "k": 92,
+        "status": "FEASIBLE",
+        "source": "DSATUR",
+        "clique": 42,
+        "solver": "BV",
+        "timeout": 60.0
     },
     "benchmarks/DIMACS/C4000.5.clq": {
         "k": null,
         "status": "SKIPPED_TOO_LARGE"
     },
     "benchmarks/DIMACS/C500.9.clq": {
-        "k": null,
-        "status": "SKIPPED_TOO_LARGE"
+        "k": 164,
+        "status": "FEASIBLE",
+        "source": "DSATUR",
+        "clique": 52,
+        "solver": "BV",
+        "timeout": 60.0
     },
     "benchmarks/DIMACS/DSJC1000.1.col": {
-        "k": null,
-        "status": "SKIPPED_TOO_LARGE"
+        "k": 27,
+        "status": "FEASIBLE",
+        "source": "DSATUR",
+        "clique": 5,
+        "solver": "BV",
+        "timeout": 60.0
     },
     "benchmarks/DIMACS/DSJC1000.5.clq": {
         "k": null,
@@ -65,40 +243,117 @@
         "k": null,
         "status": "SKIPPED_TOO_LARGE"
     },
-    "benchmarks/DIMACS/DSJC125.1.col": 5,
-    "benchmarks/DIMACS/DSJC125.5.col": 20,
-    "benchmarks/DIMACS/DSJC125.9.col": 51,
-    "benchmarks/DIMACS/DSJC250.1.col": 9,
-    "benchmarks/DIMACS/DSJC250.5.col": 67,
-    "benchmarks/DIMACS/DSJC250.9.col": {
-        "k": null,
-        "status": "SKIPPED_TOO_LARGE"
+    "benchmarks/DIMACS/DSJC125.1.col": {
+        "k": 5,
+        "status": "OPTIMAL",
+        "source": "SAT",
+        "solver": "BV",
+        "timeout": 60.0
     },
-    "benchmarks/DIMACS/DSJC500.1.col": 16,
+    "benchmarks/DIMACS/DSJC125.5.col": {
+        "k": 18,
+        "status": "FEASIBLE",
+        "source": "SAT",
+        "clique": 10,
+        "solver": "BV",
+        "timeout": 60.0
+    },
+    "benchmarks/DIMACS/DSJC125.9.col": {
+        "k": 49,
+        "status": "FEASIBLE",
+        "source": "SAT",
+        "clique": 34,
+        "solver": "BV",
+        "timeout": 60.0
+    },
+    "benchmarks/DIMACS/DSJC250.1.col": {
+        "k": 9,
+        "status": "FEASIBLE",
+        "source": "SAT",
+        "clique": 4,
+        "solver": "BV",
+        "timeout": 60.0
+    },
+    "benchmarks/DIMACS/DSJC250.5.col": {
+        "k": 35,
+        "status": "FEASIBLE",
+        "source": "SAT",
+        "clique": 12,
+        "solver": "BV",
+        "timeout": 60.0
+    },
+    "benchmarks/DIMACS/DSJC250.9.col": {
+        "k": 92,
+        "status": "FEASIBLE",
+        "source": "DSATUR",
+        "clique": 41,
+        "solver": "BV",
+        "timeout": 60.0
+    },
+    "benchmarks/DIMACS/DSJC500.1.col": {
+        "k": 14,
+        "status": "FEASIBLE",
+        "source": "SAT",
+        "clique": 5,
+        "solver": "BV",
+        "timeout": 60.0
+    },
     "benchmarks/DIMACS/DSJC500.5.clq": {
-        "k": null,
-        "status": "SKIPPED_TOO_LARGE"
+        "k": 65,
+        "status": "FEASIBLE",
+        "source": "DSATUR",
+        "clique": 13,
+        "solver": "BV",
+        "timeout": 60.0
     },
     "benchmarks/DIMACS/DSJC500.5.col": {
-        "k": null,
-        "status": "SKIPPED_TOO_LARGE"
+        "k": 65,
+        "status": "FEASIBLE",
+        "source": "DSATUR",
+        "clique": 13,
+        "solver": "BV",
+        "timeout": 60.0
     },
     "benchmarks/DIMACS/DSJC500.9.col": {
-        "k": null,
-        "status": "SKIPPED_TOO_LARGE"
+        "k": 170,
+        "status": "FEASIBLE",
+        "source": "DSATUR",
+        "clique": 52,
+        "solver": "BV",
+        "timeout": 60.0
     },
-    "benchmarks/DIMACS/DSJR500.1.col": 12,
+    "benchmarks/DIMACS/DSJR500.1.col": {
+        "k": 12,
+        "status": "OPTIMAL",
+        "source": "SAT",
+        "proof": "clique",
+        "clique": 12,
+        "solver": "BV",
+        "timeout": 60.0
+    },
     "benchmarks/DIMACS/DSJR500.1c.col": {
-        "k": null,
-        "status": "SKIPPED_TOO_LARGE"
+        "k": 90,
+        "status": "FEASIBLE",
+        "source": "DSATUR",
+        "clique": 78,
+        "solver": "BV",
+        "timeout": 60.0
     },
     "benchmarks/DIMACS/DSJR500.5.col": {
-        "k": null,
-        "status": "SKIPPED_TOO_LARGE"
+        "k": 130,
+        "status": "FEASIBLE",
+        "source": "DSATUR",
+        "clique": 116,
+        "solver": "BV",
+        "timeout": 60.0
     },
     "benchmarks/DIMACS/MANN_a27.clq": {
-        "k": null,
-        "status": "SKIPPED_TOO_LARGE"
+        "k": 140,
+        "status": "FEASIBLE",
+        "source": "DSATUR",
+        "clique": 126,
+        "solver": "BV",
+        "timeout": 60.0
     },
     "benchmarks/DIMACS/MANN_a45.clq": {
         "k": null,
@@ -109,22 +364,80 @@
         "status": "SKIPPED_TOO_LARGE"
     },
     "benchmarks/DIMACS/abb313GPIA.col": {
-        "k": null,
-        "status": "SKIPPED_TOO_LARGE"
+        "k": 9,
+        "status": "FEASIBLE",
+        "source": "SAT",
+        "clique": 8,
+        "solver": "BV",
+        "timeout": 60.0
     },
-    "benchmarks/DIMACS/anna.col": 11,
-    "benchmarks/DIMACS/ash331GPIA.col": 4,
-    "benchmarks/DIMACS/ash608GPIA.col": 4,
-    "benchmarks/DIMACS/ash958GPIA.col": 4,
-    "benchmarks/DIMACS/brock200_2.clq": 31,
-    "benchmarks/DIMACS/brock200_4.clq": 46,
+    "benchmarks/DIMACS/anna.col": {
+        "k": 11,
+        "status": "OPTIMAL",
+        "source": "DSATUR",
+        "proof": "clique",
+        "clique": 11,
+        "solver": "BV",
+        "timeout": 60.0
+    },
+    "benchmarks/DIMACS/ash331GPIA.col": {
+        "k": 4,
+        "status": "OPTIMAL",
+        "source": "SAT",
+        "proof": "UNSAT",
+        "clique": 3,
+        "solver": "BV",
+        "timeout": 60.0
+    },
+    "benchmarks/DIMACS/ash608GPIA.col": {
+        "k": 4,
+        "status": "OPTIMAL",
+        "source": "SAT",
+        "proof": "UNSAT",
+        "clique": 3,
+        "solver": "BV",
+        "timeout": 60.0
+    },
+    "benchmarks/DIMACS/ash958GPIA.col": {
+        "k": 4,
+        "status": "OPTIMAL",
+        "source": "SAT",
+        "proof": "UNSAT",
+        "clique": 3,
+        "solver": "BV",
+        "timeout": 60.0
+    },
+    "benchmarks/DIMACS/brock200_2.clq": {
+        "k": 27,
+        "status": "FEASIBLE",
+        "source": "SAT",
+        "clique": 11,
+        "solver": "BV",
+        "timeout": 60.0
+    },
+    "benchmarks/DIMACS/brock200_4.clq": {
+        "k": 40,
+        "status": "FEASIBLE",
+        "source": "SAT",
+        "clique": 16,
+        "solver": "BV",
+        "timeout": 60.0
+    },
     "benchmarks/DIMACS/brock400_2.clq": {
-        "k": null,
-        "status": "SKIPPED_TOO_LARGE"
+        "k": 93,
+        "status": "FEASIBLE",
+        "source": "DSATUR",
+        "clique": 24,
+        "solver": "BV",
+        "timeout": 60.0
     },
     "benchmarks/DIMACS/brock400_4.clq": {
-        "k": null,
-        "status": "SKIPPED_TOO_LARGE"
+        "k": 91,
+        "status": "FEASIBLE",
+        "source": "DSATUR",
+        "clique": 24,
+        "solver": "BV",
+        "timeout": 60.0
     },
     "benchmarks/DIMACS/brock800_2.clq": {
         "k": null,
@@ -134,39 +447,163 @@
         "k": null,
         "status": "SKIPPED_TOO_LARGE"
     },
-    "benchmarks/DIMACS/david.col": 11,
-    "benchmarks/DIMACS/fpsol2.i.1.col": 69,
-    "benchmarks/DIMACS/fpsol2.i.2.col": 30,
-    "benchmarks/DIMACS/fpsol2.i.3.col": 30,
-    "benchmarks/DIMACS/games120.col": 9,
-    "benchmarks/DIMACS/gen200_p0.9_44.clq": 162,
-    "benchmarks/DIMACS/gen200_p0.9_55.clq": 169,
+    "benchmarks/DIMACS/david.col": {
+        "k": 11,
+        "status": "OPTIMAL",
+        "source": "DSATUR",
+        "proof": "clique",
+        "clique": 11,
+        "solver": "BV",
+        "timeout": 60.0
+    },
+    "benchmarks/DIMACS/fpsol2.i.1.col": {
+        "k": 65,
+        "status": "FEASIBLE",
+        "source": "DSATUR",
+        "clique": 60,
+        "solver": "BV",
+        "timeout": 60.0
+    },
+    "benchmarks/DIMACS/fpsol2.i.2.col": {
+        "k": 30,
+        "status": "OPTIMAL",
+        "source": "DSATUR",
+        "proof": "clique",
+        "clique": 30,
+        "solver": "BV",
+        "timeout": 60.0
+    },
+    "benchmarks/DIMACS/fpsol2.i.3.col": {
+        "k": 30,
+        "status": "OPTIMAL",
+        "source": "DSATUR",
+        "proof": "clique",
+        "clique": 30,
+        "solver": "BV",
+        "timeout": 60.0
+    },
+    "benchmarks/DIMACS/games120.col": {
+        "k": 9,
+        "status": "OPTIMAL",
+        "source": "DSATUR",
+        "proof": "clique",
+        "clique": 9,
+        "solver": "BV",
+        "timeout": 60.0
+    },
+    "benchmarks/DIMACS/gen200_p0.9_44.clq": {
+        "k": 60,
+        "status": "FEASIBLE",
+        "source": "SAT",
+        "clique": 38,
+        "solver": "BV",
+        "timeout": 60.0
+    },
+    "benchmarks/DIMACS/gen200_p0.9_55.clq": {
+        "k": 69,
+        "status": "FEASIBLE",
+        "source": "SAT",
+        "clique": 41,
+        "solver": "BV",
+        "timeout": 60.0
+    },
     "benchmarks/DIMACS/gen400_p0.9_55.clq": {
-        "k": null,
-        "status": "SKIPPED_TOO_LARGE"
+        "k": 102,
+        "status": "FEASIBLE",
+        "source": "DSATUR",
+        "clique": 50,
+        "solver": "BV",
+        "timeout": 60.0
     },
     "benchmarks/DIMACS/gen400_p0.9_65.clq": {
-        "k": null,
-        "status": "SKIPPED_TOO_LARGE"
+        "k": 118,
+        "status": "FEASIBLE",
+        "source": "DSATUR",
+        "clique": 47,
+        "solver": "BV",
+        "timeout": 60.0
     },
     "benchmarks/DIMACS/gen400_p0.9_75.clq": {
-        "k": null,
-        "status": "SKIPPED_TOO_LARGE"
+        "k": 118,
+        "status": "FEASIBLE",
+        "source": "DSATUR",
+        "clique": 50,
+        "solver": "BV",
+        "timeout": 60.0
     },
     "benchmarks/DIMACS/hamming10-4.clq": {
         "k": null,
         "status": "SKIPPED_TOO_LARGE"
     },
     "benchmarks/DIMACS/hamming8-4.clq": {
-        "k": null,
-        "status": "SKIPPED_TOO_LARGE"
+        "k": 16,
+        "status": "OPTIMAL",
+        "source": "SAT",
+        "proof": "clique",
+        "clique": 16,
+        "solver": "BV",
+        "timeout": 60.0
     },
-    "benchmarks/DIMACS/huck.col": 11,
-    "benchmarks/DIMACS/inithx.i.1.col": 66,
-    "benchmarks/DIMACS/inithx.i.2.col": 37,
-    "benchmarks/DIMACS/inithx.i.3.col": 35,
-    "benchmarks/DIMACS/jean.col": 10,
-    "benchmarks/DIMACS/keller4.clq": 18,
+    "benchmarks/DIMACS/homer.col": {
+        "k": 13,
+        "status": "OPTIMAL",
+        "source": "DSATUR",
+        "proof": "clique",
+        "clique": 13,
+        "solver": "BV",
+        "timeout": 60.0
+    },
+    "benchmarks/DIMACS/huck.col": {
+        "k": 11,
+        "status": "OPTIMAL",
+        "source": "DSATUR",
+        "proof": "clique",
+        "clique": 11,
+        "solver": "BV",
+        "timeout": 60.0
+    },
+    "benchmarks/DIMACS/inithx.i.1.col": {
+        "k": 54,
+        "status": "OPTIMAL",
+        "source": "DSATUR",
+        "proof": "clique",
+        "clique": 54,
+        "solver": "BV",
+        "timeout": 60.0
+    },
+    "benchmarks/DIMACS/inithx.i.2.col": {
+        "k": 31,
+        "status": "FEASIBLE",
+        "source": "DSATUR",
+        "clique": 30,
+        "solver": "BV",
+        "timeout": 60.0
+    },
+    "benchmarks/DIMACS/inithx.i.3.col": {
+        "k": 31,
+        "status": "FEASIBLE",
+        "source": "DSATUR",
+        "clique": 30,
+        "solver": "BV",
+        "timeout": 60.0
+    },
+    "benchmarks/DIMACS/jean.col": {
+        "k": 10,
+        "status": "OPTIMAL",
+        "source": "DSATUR",
+        "proof": "clique",
+        "clique": 10,
+        "solver": "BV",
+        "timeout": 60.0
+    },
+    "benchmarks/DIMACS/keller4.clq": {
+        "k": 15,
+        "status": "FEASIBLE",
+        "source": "SAT",
+        "clique": 11,
+        "solver": "BV",
+        "timeout": 60.0
+    },
     "benchmarks/DIMACS/keller5.clq": {
         "k": null,
         "status": "SKIPPED_TOO_LARGE"
@@ -179,37 +616,275 @@
         "k": null,
         "status": "SKIPPED_TOO_LARGE"
     },
-    "benchmarks/DIMACS/le450_15a.col": 15,
-    "benchmarks/DIMACS/le450_15b.col": 15,
-    "benchmarks/DIMACS/le450_15c.col": 24,
-    "benchmarks/DIMACS/le450_15d.col": 23,
-    "benchmarks/DIMACS/le450_25a.col": 25,
-    "benchmarks/DIMACS/le450_25b.col": 25,
-    "benchmarks/DIMACS/le450_25c.col": 41,
-    "benchmarks/DIMACS/le450_25d.col": 32,
-    "benchmarks/DIMACS/le450_5a.col": 5,
-    "benchmarks/DIMACS/le450_5b.col": 5,
-    "benchmarks/DIMACS/le450_5c.col": 5,
-    "benchmarks/DIMACS/le450_5d.col": 5,
-    "benchmarks/DIMACS/miles1000.col": 42,
-    "benchmarks/DIMACS/miles1500.col": 73,
-    "benchmarks/DIMACS/miles250.col": 8,
-    "benchmarks/DIMACS/miles500.col": 20,
-    "benchmarks/DIMACS/miles750.col": 31,
-    "benchmarks/DIMACS/mug100_1.col": 4,
-    "benchmarks/DIMACS/mug100_25.col": 4,
-    "benchmarks/DIMACS/mug88_1.col": 4,
-    "benchmarks/DIMACS/mug88_25.col": 4,
-    "benchmarks/DIMACS/mulsol.i.1.col": 49,
-    "benchmarks/DIMACS/mulsol.i.2.col": 31,
-    "benchmarks/DIMACS/mulsol.i.3.col": 31,
-    "benchmarks/DIMACS/mulsol.i.4.col": 31,
-    "benchmarks/DIMACS/mulsol.i.5.col": 31,
-    "benchmarks/DIMACS/myciel3.col": 4,
-    "benchmarks/DIMACS/myciel4.col": 5,
-    "benchmarks/DIMACS/myciel5.col": 6,
-    "benchmarks/DIMACS/myciel6.col": 7,
-    "benchmarks/DIMACS/myciel7.col": 8,
+    "benchmarks/DIMACS/le450_15a.col": {
+        "k": 15,
+        "status": "OPTIMAL",
+        "source": "SAT",
+        "proof": "clique",
+        "clique": 15,
+        "solver": "BV",
+        "timeout": 60.0
+    },
+    "benchmarks/DIMACS/le450_15b.col": {
+        "k": 15,
+        "status": "OPTIMAL",
+        "source": "SAT",
+        "proof": "clique",
+        "clique": 15,
+        "solver": "BV",
+        "timeout": 60.0
+    },
+    "benchmarks/DIMACS/le450_15c.col": {
+        "k": 22,
+        "status": "FEASIBLE",
+        "source": "SAT",
+        "clique": 15,
+        "solver": "BV",
+        "timeout": 60.0
+    },
+    "benchmarks/DIMACS/le450_15d.col": {
+        "k": 22,
+        "status": "FEASIBLE",
+        "source": "SAT",
+        "clique": 15,
+        "solver": "BV",
+        "timeout": 60.0
+    },
+    "benchmarks/DIMACS/le450_25a.col": {
+        "k": 25,
+        "status": "OPTIMAL",
+        "source": "DSATUR",
+        "proof": "clique",
+        "clique": 25,
+        "solver": "BV",
+        "timeout": 60.0
+    },
+    "benchmarks/DIMACS/le450_25b.col": {
+        "k": 25,
+        "status": "OPTIMAL",
+        "source": "DSATUR",
+        "proof": "clique",
+        "clique": 25,
+        "solver": "BV",
+        "timeout": 60.0
+    },
+    "benchmarks/DIMACS/le450_25c.col": {
+        "k": 27,
+        "status": "FEASIBLE",
+        "source": "SAT",
+        "clique": 25,
+        "solver": "BV",
+        "timeout": 60.0
+    },
+    "benchmarks/DIMACS/le450_25d.col": {
+        "k": 27,
+        "status": "FEASIBLE",
+        "source": "SAT",
+        "clique": 25,
+        "solver": "BV",
+        "timeout": 60.0
+    },
+    "benchmarks/DIMACS/le450_5a.col": {
+        "k": 5,
+        "status": "OPTIMAL",
+        "source": "SAT",
+        "proof": "clique",
+        "clique": 5,
+        "solver": "BV",
+        "timeout": 60.0
+    },
+    "benchmarks/DIMACS/le450_5b.col": {
+        "k": 5,
+        "status": "OPTIMAL",
+        "source": "SAT",
+        "proof": "clique",
+        "clique": 5,
+        "solver": "BV",
+        "timeout": 60.0
+    },
+    "benchmarks/DIMACS/le450_5c.col": {
+        "k": 5,
+        "status": "OPTIMAL",
+        "source": "SAT",
+        "proof": "clique",
+        "clique": 5,
+        "solver": "BV",
+        "timeout": 60.0
+    },
+    "benchmarks/DIMACS/le450_5d.col": {
+        "k": 5,
+        "status": "OPTIMAL",
+        "source": "SAT",
+        "proof": "clique",
+        "clique": 5,
+        "solver": "BV",
+        "timeout": 60.0
+    },
+    "benchmarks/DIMACS/miles1000.col": {
+        "k": 42,
+        "status": "OPTIMAL",
+        "source": "DSATUR",
+        "proof": "clique",
+        "clique": 42,
+        "solver": "BV",
+        "timeout": 60.0
+    },
+    "benchmarks/DIMACS/miles1500.col": {
+        "k": 73,
+        "status": "OPTIMAL",
+        "source": "DSATUR",
+        "proof": "clique",
+        "clique": 73,
+        "solver": "BV",
+        "timeout": 60.0
+    },
+    "benchmarks/DIMACS/miles250.col": {
+        "k": 8,
+        "status": "OPTIMAL",
+        "source": "DSATUR",
+        "proof": "clique",
+        "clique": 8,
+        "solver": "BV",
+        "timeout": 60.0
+    },
+    "benchmarks/DIMACS/miles500.col": {
+        "k": 20,
+        "status": "OPTIMAL",
+        "source": "DSATUR",
+        "proof": "clique",
+        "clique": 20,
+        "solver": "BV",
+        "timeout": 60.0
+    },
+    "benchmarks/DIMACS/miles750.col": {
+        "k": 31,
+        "status": "OPTIMAL",
+        "source": "DSATUR",
+        "proof": "clique",
+        "clique": 31,
+        "solver": "BV",
+        "timeout": 60.0
+    },
+    "benchmarks/DIMACS/mug100_1.col": {
+        "k": 4,
+        "status": "OPTIMAL",
+        "source": "DSATUR",
+        "proof": "UNSAT",
+        "clique": 3,
+        "solver": "BV",
+        "timeout": 60.0
+    },
+    "benchmarks/DIMACS/mug100_25.col": {
+        "k": 4,
+        "status": "OPTIMAL",
+        "source": "DSATUR",
+        "proof": "UNSAT",
+        "clique": 3,
+        "solver": "BV",
+        "timeout": 60.0
+    },
+    "benchmarks/DIMACS/mug88_1.col": {
+        "k": 4,
+        "status": "OPTIMAL",
+        "source": "DSATUR",
+        "proof": "UNSAT",
+        "clique": 3,
+        "solver": "BV",
+        "timeout": 60.0
+    },
+    "benchmarks/DIMACS/mug88_25.col": {
+        "k": 4,
+        "status": "OPTIMAL",
+        "source": "DSATUR",
+        "proof": "UNSAT",
+        "clique": 3,
+        "solver": "BV",
+        "timeout": 60.0
+    },
+    "benchmarks/DIMACS/mulsol.i.1.col": {
+        "k": 49,
+        "status": "OPTIMAL",
+        "source": "DSATUR",
+        "proof": "clique",
+        "clique": 49,
+        "solver": "BV",
+        "timeout": 60.0
+    },
+    "benchmarks/DIMACS/mulsol.i.2.col": {
+        "k": 31,
+        "status": "FEASIBLE",
+        "source": "DSATUR",
+        "clique": 30,
+        "solver": "BV",
+        "timeout": 60.0
+    },
+    "benchmarks/DIMACS/mulsol.i.3.col": {
+        "k": 31,
+        "status": "FEASIBLE",
+        "source": "DSATUR",
+        "clique": 30,
+        "solver": "BV",
+        "timeout": 60.0
+    },
+    "benchmarks/DIMACS/mulsol.i.4.col": {
+        "k": 31,
+        "status": "FEASIBLE",
+        "source": "DSATUR",
+        "clique": 30,
+        "solver": "BV",
+        "timeout": 60.0
+    },
+    "benchmarks/DIMACS/mulsol.i.5.col": {
+        "k": 31,
+        "status": "FEASIBLE",
+        "source": "DSATUR",
+        "clique": 30,
+        "solver": "BV",
+        "timeout": 60.0
+    },
+    "benchmarks/DIMACS/myciel3.col": {
+        "k": 4,
+        "status": "OPTIMAL",
+        "source": "DSATUR",
+        "proof": "UNSAT",
+        "clique": 2,
+        "solver": "BV",
+        "timeout": 60.0
+    },
+    "benchmarks/DIMACS/myciel4.col": {
+        "k": 5,
+        "status": "OPTIMAL",
+        "source": "DSATUR",
+        "proof": "UNSAT",
+        "clique": 2,
+        "solver": "BV",
+        "timeout": 60.0
+    },
+    "benchmarks/DIMACS/myciel5.col": {
+        "k": 6,
+        "status": "OPTIMAL",
+        "source": "DSATUR",
+        "proof": "UNSAT",
+        "clique": 2,
+        "solver": "BV",
+        "timeout": 60.0
+    },
+    "benchmarks/DIMACS/myciel6.col": {
+        "k": 7,
+        "status": "FEASIBLE",
+        "source": "DSATUR",
+        "clique": 2,
+        "solver": "BV",
+        "timeout": 60.0
+    },
+    "benchmarks/DIMACS/myciel7.col": {
+        "k": 8,
+        "status": "FEASIBLE",
+        "source": "DSATUR",
+        "clique": 2,
+        "solver": "BV",
+        "timeout": 60.0
+    },
     "benchmarks/DIMACS/p_hat1500-1.clq": {
         "k": null,
         "status": "SKIPPED_TOO_LARGE"
@@ -222,237 +897,201 @@
         "k": null,
         "status": "SKIPPED_TOO_LARGE"
     },
-    "benchmarks/DIMACS/p_hat300-1.clq": 21,
+    "benchmarks/DIMACS/p_hat300-1.clq": {
+        "k": 20,
+        "status": "FEASIBLE",
+        "source": "SAT",
+        "clique": 8,
+        "solver": "BV",
+        "timeout": 60.0
+    },
     "benchmarks/DIMACS/p_hat300-2.clq": {
-        "k": null,
-        "status": "SKIPPED_TOO_LARGE"
+        "k": 40,
+        "status": "FEASIBLE",
+        "source": "SAT",
+        "clique": 25,
+        "solver": "BV",
+        "timeout": 60.0
     },
     "benchmarks/DIMACS/p_hat300-3.clq": {
-        "k": null,
-        "status": "SKIPPED_TOO_LARGE"
+        "k": 69,
+        "status": "FEASIBLE",
+        "source": "DSATUR",
+        "clique": 34,
+        "solver": "BV",
+        "timeout": 60.0
     },
     "benchmarks/DIMACS/p_hat700-1.clq": {
-        "k": null,
-        "status": "SKIPPED_TOO_LARGE"
+        "k": 40,
+        "status": "FEASIBLE",
+        "source": "DSATUR",
+        "clique": 9,
+        "solver": "BV",
+        "timeout": 60.0
     },
     "benchmarks/DIMACS/p_hat700-2.clq": {
-        "k": null,
-        "status": "SKIPPED_TOO_LARGE"
+        "k": 85,
+        "status": "FEASIBLE",
+        "source": "DSATUR",
+        "clique": 44,
+        "solver": "BV",
+        "timeout": 60.0
     },
     "benchmarks/DIMACS/p_hat700-3.clq": {
-        "k": null,
-        "status": "SKIPPED_TOO_LARGE"
+        "k": 143,
+        "status": "FEASIBLE",
+        "source": "DSATUR",
+        "clique": 61,
+        "solver": "BV",
+        "timeout": 60.0
     },
     "benchmarks/DIMACS/qg.order100.col": {
         "k": null,
         "status": "SKIPPED_TOO_LARGE"
     },
     "benchmarks/DIMACS/qg.order30.col": {
-        "k": null,
-        "status": "SKIPPED_TOO_LARGE"
+        "k": 31,
+        "status": "FEASIBLE",
+        "source": "SAT",
+        "clique": 30,
+        "solver": "BV",
+        "timeout": 60.0
     },
     "benchmarks/DIMACS/qg.order40.col": {
-        "k": null,
-        "status": "SKIPPED_TOO_LARGE"
+        "k": 44,
+        "status": "FEASIBLE",
+        "source": "SAT",
+        "clique": 40,
+        "solver": "BV",
+        "timeout": 60.0
     },
     "benchmarks/DIMACS/qg.order60.col": {
         "k": null,
         "status": "SKIPPED_TOO_LARGE"
     },
-    "benchmarks/DIMACS/queen10_10.col": 12,
-    "benchmarks/DIMACS/queen11_11.col": 13,
-    "benchmarks/DIMACS/queen12_12.col": 15,
-    "benchmarks/DIMACS/queen13_13.col": 16,
-    "benchmarks/DIMACS/queen14_14.col": 17,
-    "benchmarks/DIMACS/queen15_15.col": 18,
-    "benchmarks/DIMACS/queen16_16.col": 20,
-    "benchmarks/DIMACS/queen5_5.col": 5,
-    "benchmarks/DIMACS/queen6_6.col": 7,
-    "benchmarks/DIMACS/queen7_7.col": 7,
-    "benchmarks/DIMACS/queen8_12.col": 12,
-    "benchmarks/DIMACS/queen8_8.col": 9,
-    "benchmarks/DIMACS/queen9_9.col": 11,
-    "benchmarks/DIMACS/qwhdec.order18.holes120.1.col": 18,
+    "benchmarks/DIMACS/queen10_10.col": {
+        "k": 11,
+        "status": "FEASIBLE",
+        "source": "SAT",
+        "clique": 10,
+        "solver": "BV",
+        "timeout": 60.0
+    },
+    "benchmarks/DIMACS/queen11_11.col": {
+        "k": 13,
+        "status": "FEASIBLE",
+        "source": "SAT",
+        "clique": 11,
+        "solver": "BV",
+        "timeout": 60.0
+    },
+    "benchmarks/DIMACS/queen12_12.col": {
+        "k": 14,
+        "status": "FEASIBLE",
+        "source": "SAT",
+        "clique": 12,
+        "solver": "BV",
+        "timeout": 60.0
+    },
+    "benchmarks/DIMACS/queen13_13.col": {
+        "k": 15,
+        "status": "FEASIBLE",
+        "source": "SAT",
+        "clique": 13,
+        "solver": "BV",
+        "timeout": 60.0
+    },
+    "benchmarks/DIMACS/queen14_14.col": {
+        "k": 16,
+        "status": "FEASIBLE",
+        "source": "SAT",
+        "clique": 14,
+        "solver": "BV",
+        "timeout": 60.0
+    },
+    "benchmarks/DIMACS/queen15_15.col": {
+        "k": 18,
+        "status": "FEASIBLE",
+        "source": "SAT",
+        "clique": 15,
+        "solver": "BV",
+        "timeout": 60.0
+    },
+    "benchmarks/DIMACS/queen16_16.col": {
+        "k": 19,
+        "status": "FEASIBLE",
+        "source": "SAT",
+        "clique": 16,
+        "solver": "BV",
+        "timeout": 60.0
+    },
+    "benchmarks/DIMACS/queen5_5.col": {
+        "k": 5,
+        "status": "OPTIMAL",
+        "source": "DSATUR",
+        "proof": "clique",
+        "clique": 5,
+        "solver": "BV",
+        "timeout": 60.0
+    },
+    "benchmarks/DIMACS/queen6_6.col": {
+        "k": 7,
+        "status": "OPTIMAL",
+        "source": "SAT",
+        "proof": "UNSAT",
+        "clique": 6,
+        "solver": "BV",
+        "timeout": 60.0
+    },
+    "benchmarks/DIMACS/queen7_7.col": {
+        "k": 7,
+        "status": "OPTIMAL",
+        "source": "SAT",
+        "proof": "clique",
+        "clique": 7,
+        "solver": "BV",
+        "timeout": 60.0
+    },
+    "benchmarks/DIMACS/queen8_12.col": {
+        "k": 12,
+        "status": "OPTIMAL",
+        "source": "SAT",
+        "proof": "clique",
+        "clique": 12,
+        "solver": "BV",
+        "timeout": 60.0
+    },
+    "benchmarks/DIMACS/queen8_8.col": {
+        "k": 9,
+        "status": "FEASIBLE",
+        "source": "SAT",
+        "clique": 8,
+        "solver": "BV",
+        "timeout": 60.0
+    },
+    "benchmarks/DIMACS/queen9_9.col": {
+        "k": 10,
+        "status": "FEASIBLE",
+        "source": "SAT",
+        "clique": 9,
+        "solver": "BV",
+        "timeout": 60.0
+    },
+    "benchmarks/DIMACS/qwhdec.order18.holes120.1.col": {
+        "k": 18,
+        "status": "OPTIMAL",
+        "source": "SAT",
+        "proof": "clique",
+        "clique": 18,
+        "solver": "BV",
+        "timeout": 60.0
+    },
     "benchmarks/DIMACS/qwhdec.order30.holes316.1.col": {
-        "k": null,
-        "status": "SKIPPED_TOO_LARGE"
-    },
-    "benchmarks/DIMACS/qwhdec.order30.holes320.1.col": {
-        "k": null,
-        "status": "SKIPPED_TOO_LARGE"
-    },
-    "benchmarks/DIMACS/qwhdec.order33.holes381.bal.1.col": {
-        "k": null,
-        "status": "SKIPPED_TOO_LARGE"
-    },
-    "benchmarks/DIMACS/qwhdec.order35.holes405.1.col": {
-        "k": null,
-        "status": "SKIPPED_TOO_LARGE"
-    },
-    "benchmarks/DIMACS/qwhdec.order40.holes528.1.col": {
-        "k": null,
-        "status": "SKIPPED_TOO_LARGE"
-    },
-    "benchmarks/DIMACS/qwhdec.order5.holes10.1.col": 5,
-    "benchmarks/DIMACS/qwhdec.order50.holes750.bal.1.col": {
-        "k": null,
-        "status": "SKIPPED_TOO_LARGE"
-    },
-    "benchmarks/DIMACS/qwhdec.order50.holes825.bal.1.col": {
-        "k": null,
-        "status": "SKIPPED_TOO_LARGE"
-    },
-    "benchmarks/DIMACS/qwhdec.order60.holes1080.bal.1.col": {
-        "k": null,
-        "status": "SKIPPED_TOO_LARGE"
-    },
-    "benchmarks/DIMACS/qwhdec.order60.holes1152.bal.1.col": {
-        "k": null,
-        "status": "SKIPPED_TOO_LARGE"
-    },
-    "benchmarks/DIMACS/qwhdec.order60.holes1440.1.col": {
-        "k": null,
-        "status": "SKIPPED_TOO_LARGE"
-    },
-    "benchmarks/DIMACS/qwhdec.order60.holes1620.1.col": {
-        "k": null,
-        "status": "SKIPPED_TOO_LARGE"
-    },
-    "benchmarks/DIMACS/qwhdec.order70.holes2450.1.col": {
-        "k": null,
-        "status": "SKIPPED_TOO_LARGE"
-    },
-    "benchmarks/DIMACS/qwhdec.order70.holes2940.1.col": {
-        "k": null,
-        "status": "SKIPPED_TOO_LARGE"
-    },
-    "benchmarks/DIMACS/qwhopt.order18.holes120.1.col": 18,
-    "benchmarks/DIMACS/qwhopt.order30.holes316.1.col": {
-        "k": null,
-        "status": "SKIPPED_TOO_LARGE"
-    },
-    "benchmarks/DIMACS/qwhopt.order30.holes320.1.col": {
-        "k": null,
-        "status": "SKIPPED_TOO_LARGE"
-    },
-    "benchmarks/DIMACS/qwhopt.order33.holes381.bal.1.col": {
-        "k": null,
-        "status": "SKIPPED_TOO_LARGE"
-    },
-    "benchmarks/DIMACS/qwhopt.order35.holes405.1.col": {
-        "k": null,
-        "status": "SKIPPED_TOO_LARGE"
-    },
-    "benchmarks/DIMACS/qwhopt.order40.holes528.1.col": {
-        "k": null,
-        "status": "SKIPPED_TOO_LARGE"
-    },
-    "benchmarks/DIMACS/qwhopt.order5.holes10.1.col": 5,
-    "benchmarks/DIMACS/qwhopt.order50.holes750.bal.1.col": {
-        "k": null,
-        "status": "SKIPPED_TOO_LARGE"
-    },
-    "benchmarks/DIMACS/qwhopt.order50.holes825.bal.1.col": {
-        "k": null,
-        "status": "SKIPPED_TOO_LARGE"
-    },
-    "benchmarks/DIMACS/qwhopt.order60.holes1080.bal.1.col": {
-        "k": null,
-        "status": "SKIPPED_TOO_LARGE"
-    },
-    "benchmarks/DIMACS/qwhopt.order60.holes1152.bal.1.col": {
-        "k": null,
-        "status": "SKIPPED_TOO_LARGE"
-    },
-    "benchmarks/DIMACS/qwhopt.order60.holes1440.1.col": {
-        "k": null,
-        "status": "SKIPPED_TOO_LARGE"
-    },
-    "benchmarks/DIMACS/qwhopt.order60.holes1620.1.col": {
-        "k": null,
-        "status": "SKIPPED_TOO_LARGE"
-    },
-    "benchmarks/DIMACS/qwhopt.order70.holes2450.1.col": {
-        "k": null,
-        "status": "SKIPPED_TOO_LARGE"
-    },
-    "benchmarks/DIMACS/qwhopt.order70.holes2940.1.col": {
-        "k": null,
-        "status": "SKIPPED_TOO_LARGE"
-    },
-    "benchmarks/DIMACS/school1.col": 31,
-    "benchmarks/DIMACS/school1_nsh.col": 30,
-    "benchmarks/DIMACS/wap01.col": {
-        "k": null,
-        "status": "SKIPPED_TOO_LARGE"
-    },
-    "benchmarks/DIMACS/wap01a.col": {
-        "k": null,
-        "status": "SKIPPED_TOO_LARGE"
-    },
-    "benchmarks/DIMACS/wap02.col": {
-        "k": null,
-        "status": "SKIPPED_TOO_LARGE"
-    },
-    "benchmarks/DIMACS/wap02a.col": {
-        "k": null,
-        "status": "SKIPPED_TOO_LARGE"
-    },
-    "benchmarks/DIMACS/wap03.col": {
-        "k": null,
-        "status": "SKIPPED_TOO_LARGE"
-    },
-    "benchmarks/DIMACS/wap03a.col": {
-        "k": null,
-        "status": "SKIPPED_TOO_LARGE"
-    },
-    "benchmarks/DIMACS/wap04.col": {
-        "k": null,
-        "status": "SKIPPED_TOO_LARGE"
-    },
-    "benchmarks/DIMACS/wap04a.col": {
-        "k": null,
-        "status": "SKIPPED_TOO_LARGE"
-    },
-    "benchmarks/DIMACS/wap05.col": {
-        "k": null,
-        "status": "SKIPPED_TOO_LARGE"
-    },
-    "benchmarks/DIMACS/wap05a.col": {
-        "k": null,
-        "status": "SKIPPED_TOO_LARGE"
-    },
-    "benchmarks/DIMACS/wap06.col": {
-        "k": null,
-        "status": "SKIPPED_TOO_LARGE"
-    },
-    "benchmarks/DIMACS/wap06a.col": {
-        "k": null,
-        "status": "SKIPPED_TOO_LARGE"
-    },
-    "benchmarks/DIMACS/wap07.col": {
-        "k": null,
-        "status": "SKIPPED_TOO_LARGE"
-    },
-    "benchmarks/DIMACS/wap07a.col": {
-        "k": null,
-        "status": "SKIPPED_TOO_LARGE"
-    },
-    "benchmarks/DIMACS/wap08.col": {
-        "k": null,
-        "status": "SKIPPED_TOO_LARGE"
-    },
-    "benchmarks/DIMACS/wap08a.col": {
-        "k": null,
-        "status": "SKIPPED_TOO_LARGE"
-    },
-    "benchmarks/DIMACS/will199GPIA.col": 7,
-    "benchmarks/DIMACS/zeroin.i.1.col": 49,
-    "benchmarks/DIMACS/zeroin.i.2.col": 30,
-    "benchmarks/DIMACS/zeroin.i.3.col": 30,
-    "benchmarks/DSJC125.1.col": 5,
-    "benchmarks/DSJC250.1.col": 9,
-    "benchmarks/myciel3.col": 3,
-    "benchmarks/myciel4.col": 4,
-    "benchmarks/myciel5.col": 5
+        "k": 31,
+        "status": "FEASIBLE",
+        "source": "SAT",
+        "clique": 30,
+        "solver": "BV",
+        "timeout": 60.0
+    }
 }
