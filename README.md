@@ -24,6 +24,7 @@ The point is to compare how the solver copes with the *same* combinatorial probl
 | `smt_solver.cpp` | Older version built on [smt-switch](https://github.com/stanford-centaur/smt-switch) with a cvc5 backend; supports a subset of 8 encodings. Built as `smt_solver`. |
 | `smt_solver_dreal.py` | The four trig encodings (`NLRA-SIN`, `NLRA-COS`, `NLRA-SINCOS`, `NLRA-SINPI`) solved by the delta-complete solver [dReal](https://github.com/dreal/dreal4) instead of cvc5. Same command line and output as `smt_solver_cvc5`. See [dReal](#dreal-delta-complete-trig-solver). |
 | `smt_solver_bv.cpp`, `smt_solver_sym.cpp` | Early standalone prototypes (smt-switch). **Not** built by CMake. |
+| `gui/` | **K-Coloring Explorer**, a local web UI: pick a graph, a solver and K, see the formulas in math notation and the coloring. See [Explorer](#explorer-web-ui). |
 | `benchmark.py` | Runs a set of solvers over many graphs with a timeout and prints/logs a comparison table. |
 | `find_optimal_k.py` | Computes the chromatic number (or an upper bound) for each graph and writes it to `optimal_k_values.json`. |
 | `gen_substring_strings.py` | Writes `substring_strings.txt`: for each K, the shortest string with exactly K distinct substrings. Run `python3 gen_substring_strings.py [MAX_K]` (default 20; 60 takes a few seconds, 80 a few minutes). |
@@ -507,6 +508,24 @@ e 1 3
 ```
 
 ---
+
+## Explorer (web UI)
+
+`gui/` holds a small web app for running one instance and looking at it. It needs nothing beyond Python 3 and a built `build/smt_solver_cvc5`:
+
+```bash
+./gui/kcolor_gui.py               # opens http://127.0.0.1:8765/ in your browser
+./gui/kcolor_gui.py --no-browser  # just print the address; --port N picks another port
+```
+
+- **Graph**: every `.col` / `.clq` under `benchmarks/` (plus `test.col`), searchable, with its node and edge counts. K defaults to the value in `optimal_k_values.json`, with a link back to it if you change K.
+- **Solver**: every theory that `smt_solver_cvc5 --help` lists, grouped by theory. The theory-independent encodings get an element-theory picker. The four trig encodings can also run with dReal (`smt_solver_dreal.py`).
+- **Formulas**: the assertions from `--print-asserts`, shown as math: `node₁ ∈ {0, 1, 2}`, `A₂,₁ = A₁,₁[i₁,₁ ↦ 0]`, `(E ⋈ C) ∩ C = ∅`, `c₁ ↦ E0 ∗ c₂ ↦ E0`, with `let` bindings inlined. The **SMT-LIB** toggle shows the raw text, and the filter searches it. Up to 5,000 formulas are sent to the page; the rest are only counted.
+- **While solving**: a spinner, a running timer and the phase (building the formula, solving). **Stop** kills the solver process. An optional time limit does the same automatically.
+- **Result**: SAT, UNSAT, UNKNOWN, time limit or error (with the solver's message). For SAT: a legend of the colors used, with counts. The server checks the coloring against every edge ("Valid coloring", or the conflicting edges in red). Graphs up to 300 nodes are drawn with a force-directed layout, colored by the model; hovering a node shows its value, and clicking a color in the legend highlights its nodes. **Show the color of every node** lists all nodes and can be filtered. The **Node numbers / Assigned values** toggle labels the drawing and that list either by node number (and color number) or by the value the solver assigned, in a short form (`A` for `"A"`, `{E0, E1}`, `01₂`, `π` for dReal's `1*pi`).
+- **Theme**: Light, Dark, or Auto (follow the system), top right. The choice is remembered.
+
+The server (`gui/kcolor_gui.py`) only uses the standard library. It runs the solver with `--print-asserts --model` and streams its output to the page as Server-Sent Events. The page is plain HTML/CSS/JS in `gui/static/`, and `pretty.js` holds the SMT-LIB-to-math renderer. It listens on 127.0.0.1 only.
 
 ## Benchmarking
 
