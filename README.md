@@ -73,6 +73,8 @@ The **Name** is the first argument passed to the solver binaries.
 | `PEANO` | DT | `QF_DT` | Recursive datatype `Nat = Z \| S(pred: Nat)`; colors `Z, S(Z), ..., S^(K-1)(Z)`, enforced by one tester clause "x is not K successors deep". See [`PEANO`](#peano-unary-naturals) | |
 | `UF` | UF | `QF_UF` | Uninterpreted sort with K pairwise-distinct constants; `x` equals one of them. The same as `OR-UF` | ✓ |
 | `UF-CARD` | UF + cardinality | `QF_UFC` | Uninterpreted sort `Color` with **no** domain constraint per node; a single `(_ fmf.card Color K)` says the sort has at most K elements. Handled by cvc5's cardinality solver. See [`UF-CARD`](#uf-card-the-sorts-size-is-the-domain) | |
+| `BOOL-DIRECT` | Propositional | `QF_SAT` | No theory: K Booleans `c_i_j` ("node i has color j") per node, the clause `c_i_1 ∨ ... ∨ c_i_K`, and `¬c_u_j ∨ ¬c_v_j` per edge and color. The textbook SAT encoding. See [`BOOL-DIRECT`](#bool-direct-the-plain-sat-encoding) | |
+| `BOOL-DIRECT-AMO` | Propositional | `QF_SAT` | `BOOL-DIRECT` plus the at-most-one clauses `¬c_i_a ∨ ¬c_i_b`, so each node has exactly one color | |
 | `STRING` | STRING | `QF_S` | String `x` equal to one of K distinct literals (`"A"`, `"B"`, ...). `OR-STR` up to the literals | ✓ |
 | `STR-LEX` | STRING | `QF_SLIA` | `len(x) = 1` and `"A" <= x <= chr('A'+K-1)` lexicographically. **K <= 50 only.** | ✓ |
 | `STR-INT` | STRING | `QF_SLIA` | String `x` with `1 <= str.to_int(x) <= K` and `x = str.from_int(str.to_int(x))` (canonical spelling, so `"02"` cannot pose as a second `"2"`) | |
@@ -258,6 +260,65 @@ On SAT instances `UF-CARD` is slower than `BV` almost everywhere: building a mod
 So `UF-CARD` does not replace `BV`, but it complements it: it is fastest on a family of hard UNSAT instances that `BV` struggles with. A portfolio running both would beat either alone. Breaking the color symmetry in `BV` (e.g. pre-coloring a clique) might recover part of the advantage there too.
 
 `homer.col` was left out: it contains a self-loop (`e 95 95`), so it has no coloring for any K, and every solver correctly answers UNSAT for the K = 13 stored in `optimal_k_values.json` (DSATUR ignores self-loops).
+
+### `BOOL-DIRECT`: the plain SAT encoding
+
+`BV` reduces to SAT by bit-blasting. `BOOL-DIRECT` skips the theory entirely and writes the SAT problem directly, in logic `QF_SAT` (no theory solver at all, just cvc5's CaDiCaL). It is the *direct encoding* from the SAT literature, one Boolean per (node, color) pair:
+
+```
+c_i_1 ∨ c_i_2 ∨ ... ∨ c_i_K        each node has a color          (n clauses)
+¬c_u_j ∨ ¬c_v_j                     neighbours differ, per color   (|E| · K clauses)
+¬c_i_a ∨ ¬c_i_b   for a < b         at most one color (AMO)        (n · K(K-1)/2 clauses, BOOL-DIRECT-AMO only)
+```
+
+The at-most-one clauses are optional. Without them a node may get several colors, but each of them differs from every color of every neighbour, so any one of them is a valid choice; the model printer takes the smallest. This is the same argument as for `REL-JOIN`. After bit-blasting, `BV-ONEHOT` turns into roughly this, plus the clauses for its `x & (x - 1)` arithmetic.
+
+**Direct vs log encoding.** `BV` is the *log encoding*: ⌈log₂ K⌉ bits per node, and `u ≠ v` says "some bit differs". The two trade size against propagation:
+
+- **Size**: the direct encoding has n·K variables and |E|·K edge clauses, the log encoding n·log₂ K bits and O(|E|·log K) clauses. With K = 73 that is 73 against 7 per node.
+- **Propagation**: in the direct encoding, coloring a node immediately removes that color from all its neighbours by unit propagation (on the domains, unit propagation does what arc consistency does). In the log encoding, `u ≠ v` only propagates once all but one bit of the pair are fixed, so the solver learns much less from each decision (Walsh, "SAT v CSP", CP 2000).
+
+**Results.** All graphs with a proven χ in `optimal_k_values.json`, at K = χ (SAT) and K = χ - 1 (UNSAT), 30 s timeout, 8 runs in parallel, every SAT model checked (`homer.col` is left out, see [`UF-CARD`](#uf-card-the-sorts-size-is-the-domain)):
+
+| | `BV` | `BOOL-DIRECT` | `BOOL-DIRECT-AMO` |
+|---|---|---|---|
+| SAT solved (of 56) | 55 | **56** | 55 |
+| SAT total time (timeouts as 30 s) | 140 s | **108 s** | 151 s |
+| SAT, fastest | **32** | 23 | 1 |
+| UNSAT solved (of 56) | **38** | 31 | 31 |
+| UNSAT total time | **609 s** | 766 s | 767 s |
+| UNSAT, fastest | 14 | **20** | 4 |
+
+Selected instances, in seconds:
+
+| Graph | K | | `BV` | `BOOL-DIRECT` | `BOOL-DIRECT-AMO` |
+|---|---|---|---|---|---|
+| `le450_5b` | 5 | SAT | 9.39 | **0.73** | **0.73** |
+| `le450_5a` | 5 | SAT | 4.58 | **0.66** | 0.76 |
+| `le450_15a` | 15 | SAT | 16.04 | **3.51** | 4.08 |
+| `hamming8-4` | 16 | SAT | T/O | **7.75** | 8.56 |
+| `5-FullIns_4` | 9 | SAT | 5.82 | **2.40** | 3.32 |
+| `miles1000` | 42 | SAT | **2.08** | 5.75 | 8.12 |
+| `mulsol.i.1` | 49 | SAT | **0.74** | 4.17 | 8.89 |
+| `inithx.i.1` | 54 | SAT | **9.88** | 22.72 | T/O |
+| `miles1500` | 73 | SAT | **5.20** | 17.07 | 24.04 |
+| `4-Insertions_3` | 3 | UNSAT | 3.09 | 0.78 | **0.60** |
+| `queen6_6` | 6 | UNSAT | 7.04 | **2.73** | 2.90 |
+| `3-FullIns_4` | 6 | UNSAT | 2.38 | **1.04** | 1.16 |
+| `david` | 10 | UNSAT | **1.58** | T/O | T/O |
+| `huck` | 10 | UNSAT | **1.58** | T/O | T/O |
+| `queen8_12` | 11 | UNSAT | **11.08** | T/O | T/O |
+| `DSJR500.1` | 11 | UNSAT | **12.99** | T/O | T/O |
+| `4-FullIns_4` | 7 | UNSAT | **16.32** | T/O | T/O |
+
+**`BOOL-DIRECT` is the first encoding that beats `BV` on a broad part of the benchmark, SAT included** (`UF-CARD` only wins on a family of UNSAT instances). The split follows the size/propagation trade-off:
+
+- **Small K, SAT**: the direct encoding wins, often by a lot: 4-13x on the `le450` graphs, and it is the only one to solve `hamming8-4`. Here the problem is small in either encoding, and the stronger propagation pays off.
+- **Large K, SAT**: `BV` wins, by 2-6x from K ≈ 40 on (`miles1000`, `mulsol.i.1`, `inithx.i.1`, `miles1500`). The direct encoding grows linearly in K, the log encoding logarithmically.
+- **UNSAT**: where both finish, the direct encoding is usually faster (median 1.5x), but it times out on 7 instances that `BV` solves. Most of them (`david`, `huck`, `anna`, `jean`, `DSJR500.1`) have a clique as large as χ, so with K = χ - 1 they contain a pigeonhole problem: χ pairwise adjacent nodes and only χ - 1 colors. Pigeonhole problems are notoriously hard for SAT solvers (they need exponentially long resolution proofs), and here the direct encoding, with K variables per node instead of log₂ K, suffers more from it than `BV` does.
+- **AMO hurts**: the extra clauses make `BOOL-DIRECT-AMO` slower almost everywhere (median 0.71x of `BV` on SAT, against 0.91x without them). They add n·K(K-1)/2 clauses and only forbid solutions the coloring never needed to exclude.
+
+So `BV` remains the best single encoding (most instances solved), but `BOOL-DIRECT` is better on small-K SAT and on many UNSAT instances. Together with `UF-CARD`, which solves several of the UNSAT instances `BOOL-DIRECT` fails on (`david`, `huck`, `anna`, `4-FullIns_4`) faster than `BV`, the three make a natural portfolio.
 
 ### cvc5 options for `BV`
 
