@@ -8,6 +8,10 @@ All encodings share the same skeleton:
 2. A theory-specific **domain constraint** restricting each `node_i` to exactly K possible colors.
 3. The same **edge constraint** for every edge `(u, v)`: `node_u != node_v`.
 
+Nine encodings never look at what their elements are: they get their structure from sets, arrays, a heap or plain equality. They take the element theory as a suffix (`SET-MEM-BV`, `ARR-EXP-STR`, ...); see [Theory-independent encodings](#theory-independent-encodings-encoding-elem).
+
+A few encodings deliberately break this skeleton to try out other ideas. Some replace `!=` with a theory-specific edge constraint (`BV-ONEHOT`, `INT-MOD`, `BV-MOD`, `FF-NULL`, `SEP`). Some have no per-node variable at all (`SET-CLASSES`, `REL-JOIN`). They are described in [Encodings beyond the skeleton](#encodings-beyond-the-skeleton).
+
 The point is to compare how the solver copes with the *same* combinatorial problem when it is expressed through different theories. Several encodings (notably the array chains) follow Roberto Sebastiani, *"Colors Make Theories Hard"* (IJCAR 2016).
 
 ---
@@ -16,14 +20,16 @@ The point is to compare how the solver copes with the *same* combinatorial probl
 
 | Path | Description |
 |------|-------------|
-| `smt_solver_cvc5.cpp` | **Main tool.** All 17 encodings, written against the native cvc5 C++ API. Built as `smt_solver_cvc5`. |
+| `smt_solver_cvc5.cpp` | **Main tool.** All 40 encodings, 9 of them theory-independent and runnable over any of 9 element theories, written against the native cvc5 C++ API. Built as `smt_solver_cvc5`. |
 | `smt_solver.cpp` | Older version built on [smt-switch](https://github.com/stanford-centaur/smt-switch) with a cvc5 backend; supports a subset of 8 encodings. Built as `smt_solver`. |
+| `smt_solver_dreal.py` | The four trig encodings (`NLRA-SIN`, `NLRA-COS`, `NLRA-SINCOS`, `NLRA-SINPI`) solved by the delta-complete solver [dReal](https://github.com/dreal/dreal4) instead of cvc5. Same command line and output as `smt_solver_cvc5`. See [dReal](#dreal-delta-complete-trig-solver). |
 | `smt_solver_bv.cpp`, `smt_solver_sym.cpp` | Early standalone prototypes (smt-switch). **Not** built by CMake. |
 | `benchmark.py` | Runs a set of solvers over many graphs with a timeout and prints/logs a comparison table. |
 | `find_optimal_k.py` | Computes the chromatic number (or an upper bound) for each graph and writes it to `optimal_k_values.json`. |
 | `gen_substring_strings.py` | Writes `substring_strings.txt`: for each K, the shortest string with exactly K distinct substrings. Run `python3 gen_substring_strings.py [MAX_K]` (default 20; 60 takes a few seconds, 80 a few minutes). |
 | `substring_strings.txt` | Lookup table used by the `STR-SUB` encoding. Its absolute path is compiled into `smt_solver_cvc5`, so the binary finds it from any directory. |
 | `solvers_cvc5.conf` | Solver list for `benchmark.py` that uses `build/smt_solver_cvc5`. |
+| `solvers_trig.conf` | Solver list for `benchmark.py` that runs each trig encoding with both cvc5 and dReal (+ OR-Tools). |
 | `solvers_switch.conf` | Solver list for `benchmark.py` that uses `build/smt_solver` (+ OR-Tools). Default config. |
 | `optimal_k_values.json` | Maps graph path to the K used in benchmarks. |
 | `optimal_k_values_backup_*.json` | Backup created by `find_optimal_k.py --fresh`. |
@@ -41,12 +47,18 @@ The **Name** is the first argument passed to the solver binaries.
 | Name | Theory | Logic | Domain encoding (for each node) | In `smt_solver`? |
 |------|--------|-------|---------------------------------|:---:|
 | `LIA` | LIA | `QF_LIA` | Integer `x` with `1 <= x <= K` | ✓ |
+| `INT-MOD` | LIA | `QF_LIA` | Unbounded integer `x`; the color is `x mod K`, and edges are `x_u mod K != x_v mod K`. See [`INT-MOD`, `INT-POW2`](#int-mod-and-int-pow2-integers-in-disguise) | |
+| `INT-POW2` | NIA (cvc5 extension) | `ALL` | `x = int.pow2(e)` with `0 <= e <= K-1`, so the colors are `1, 2, 4, ..., 2^(K-1)`. The integer counterpart of `BV-ONEHOT` | |
 | `IDL` | IDL | `QF_IDL` | Integer `x` with `1 <= x - zero <= K` for one shared `zero` variable (difference logic only allows `x - y <op> c`). cvc5 has no dedicated IDL engine, so this runs the LIA simplex with different pivoting settings | |
 | `BV` | BV | `QF_BV` | Bit-vector of the minimal width, `1 <=u x <=u K`. When K is a power of 2 (K >= 2), width `log2 K` and no constraint (the sort has exactly K values; the smt-switch `smt_solver` version still uses the bounds) | ✓ |
 | `BV-ZERO` | BV | `QF_BV` | Bit-vector of width `ceil(log2 K)` with colors `0..K-1`, so only the upper bound `x <=u K-1`. No constraint when K is a power of 2 (then identical to `BV`) | |
 | `BV-AND` | BV | `QF_BV` | Bit-vector of width `w = ceil(log2 K)`; one literal `(x & M) != 0` per 1-bit of `2^w - K` (none when K is a power of 2). See [Bitwise bit-vector encodings](#bitwise-bit-vector-encodings) | |
+| `BV-MOD` | BV | `QF_BV` | Unconstrained 32-bit vector `x`; the color is `x urem K`, and edges are `x_u urem K != x_v urem K`. `INT-MOD` with bit-vectors. See [`INT-MOD`, `INT-POW2`](#int-mod-and-int-pow2-integers-in-disguise) | |
 | `BV-ONEHOT` | BV | `QF_BV` | Bit-vector of width K with exactly one bit set: `x != 0` and `(x & (x-1)) = 0`. Edges are `(u & v) = 0` instead of `u != v`. See [Bitwise bit-vector encodings](#bitwise-bit-vector-encodings) | |
+| `FP` | FP | `QF_FP` | Float32 `x` with `1.0 <= x <= 1 + (K-1)*2^-23`: the K consecutive floats starting at 1.0. Edges use `fp.eq`. See [`FP`](#fp-the-k-floats-after-10) | |
 | `NLRA` | NLRA | `QF_NRA` | Real `x` with `(x-1)(x-2)...(x-K) = 0` | ✓ |
+| `NLRA-SQRT` | NLRA | `QF_NRA` | Real `x > 0` with `(x^2-1)(x^2-2)...(x^2-K) = 0`: the colors are `sqrt(1), ..., sqrt(K)`, irrational but algebraic. See [`NLRA-SQRT`, `NLRA-ROOTS`](#nlra-sqrt-and-nlra-roots-irrational-but-algebraic) | |
+| `NLRA-ROOTS` | NLRA | `QF_NRA` | Point `(a, b)` with `(a + bi)^K = 1` (expanded into two real polynomials) and `a^2 + b^2 = 1`: the corners of a regular K-gon. Edges are `a_u != a_v or b_u != b_v` | |
 | `NLRA-SIN` | NLRA + trig | `QF_NRAT` | Real `x` with `sin(x) = 0`, boxed to hold exactly K roots (K = 7: `-3pi <= x <= 3pi`). **Proves UNSAT, but never SAT for K >= 2**: cvc5 only builds rational models, and the nonzero roots are irrational | |
 | `NLRA-COS` | NLRA + trig | `QF_NRAT` | Same as `NLRA-SIN` with `cos(x) = 0` and the box shifted by `pi/2`. Same SAT limitation | |
 | `NLRA-SINCOS` | NLRA + trig | `QF_NRAT` | Same with `sin(x) * cos(x) = 0` (roots every `pi/2`). Same SAT limitation | |
@@ -54,23 +66,28 @@ The **Name** is the first argument passed to the solver binaries.
 | `FF-PRIME` | FF | `QF_FF` | Element of `GF(K)`: the sort has exactly K values, so no domain constraint. **Prime K only.** Fast on SAT, slow on UNSAT | |
 | `FF-POLY` | FF | `QF_FF` | Element of `GF(p)`, p the smallest prime `>= K`, with `x(x-1)...(x-(K-1)) = 0`. Fast on UNSAT, slow on SAT | |
 | `FF-ROOTS` | FF | `QF_FF` | Element of `GF(p)`, p the smallest prime with `K \| p-1`, with `x^K = 1` (the K-th roots of unity). Fast on UNSAT, slow on SAT. See [`FF-ROOTS`](#ff-roots-k-th-roots-of-unity) | |
+| `FF-NULL` | FF | `QF_FF` | Same field and domain as `FF-ROOTS`, but every edge is the *equation* `u^(K-1) + u^(K-2)v + ... + v^(K-1) = 0` instead of `u != v`. See [`FF-NULL`](#ff-null-nullstellensatz-coloring) | |
 | `LIST-UF` | UF | `QF_UF` | Colors are `cons(nil,nil)`, `cons(cons(nil,nil),nil)`, ... over an uninterpreted `List` sort, pairwise distinct; `x` equals one of them | ✓ |
-| `LIST-DT` | DT | `QF_DT` | Enumeration datatype `Color = C1 \| ... \| CK`; `x` equals one constructor | ✓ |
-| `UF` | UF | `QF_UF` | Uninterpreted sort with K pairwise-distinct constants; `x` equals one of them | ✓ |
-| `STRING` | STRING | `QF_S` | String `x` equal to one of K distinct literals (`"A"`, `"B"`, ...) | ✓ |
+| `LIST-DT` | DT | `QF_DT` | Enumeration datatype `Color = C1 \| ... \| CK`; `x` equals one constructor. The same as `OR-DT` | ✓ |
+| `PEANO` | DT | `QF_DT` | Recursive datatype `Nat = Z \| S(pred: Nat)`; colors `Z, S(Z), ..., S^(K-1)(Z)`, enforced by one tester clause "x is not K successors deep". See [`PEANO`](#peano-unary-naturals) | |
+| `UF` | UF | `QF_UF` | Uninterpreted sort with K pairwise-distinct constants; `x` equals one of them. The same as `OR-UF` | ✓ |
+| `STRING` | STRING | `QF_S` | String `x` equal to one of K distinct literals (`"A"`, `"B"`, ...). `OR-STR` up to the literals | ✓ |
 | `STR-LEX` | STRING | `QF_SLIA` | `len(x) = 1` and `"A" <= x <= chr('A'+K-1)` lexicographically. **K <= 50 only.** | ✓ |
 | `STR-INT` | STRING | `QF_SLIA` | String `x` with `1 <= str.to_int(x) <= K` and `x = str.from_int(str.to_int(x))` (canonical spelling, so `"02"` cannot pose as a second `"2"`) | |
 | `STR-REG` | STRING | `QF_S` | `x in ("A" \| "B" \| ...)`: membership in a union regex of K literals | |
 | `STR-SUB` | STRING | `QF_S` | `str.contains(W, x)`, where `W` has exactly K distinct substrings (the empty string included), so `x` is one of them. `W` is the shortest such string, read from `substring_strings.txt`; for K beyond the table, `W` is `"a"` repeated K-1 times | |
-| `SET-CUBE` | SET | `QF_FSLIA` | `x` is a subset of `{0, ..., L-1}` where `2^L >= K`; the `2^L - K` extra subsets are explicitly forbidden | |
-| `SET-MEM` | SET | `QF_FSLIA` | Integer `x` with `x in {1, ..., K}` (set membership) | |
-| `SET-MEM-BV` | SET | `ALL` | Bit-vector `x` with `x in {1, ..., K}` (set of bit-vectors) | |
-| `SET-MEM-UF` | SET + UF | `QF_UFFS` | `x` of an uninterpreted sort with `x in {C1, ..., CK}`, plus `(distinct C1 ... CK)` since uninterpreted constants may otherwise be equal | |
-| `ARR-EXP` | ARRAY | `QF_ALIA` | Sebastiani array chain with explicit array variables: `A_{j+1} = store(A_j, i_j, j)` for `j = 1..K` (`i_1` free, `i_j = j` otherwise), color `x = A_{K+1}[i_1]` | |
-| `ARR-INL` | ARRAY | `QF_ALIA` | Same chain as `ARR-EXP`, but built as one nested `store(store(...))` term with no intermediate variables | |
+| `OR-<ELEM>` | any | `QF_<ELEM>` | `x = e_1 or ... or e_K` for K distinct elements. [theory-independent](#theory-independent-encodings-encoding-elem), default `UF` | |
+| `SET-CUBE-<ELEM>` | SET + any | `QF_<ELEM>FS` | `x` is a subset of `{e_0, ..., e_(L-1)}` where `2^L >= K`; the `2^L - K` extra subsets are explicitly forbidden. [theory-independent](#theory-independent-encodings-encoding-elem), default `INT` | |
+| `SET-MASK-<ELEM>` | SET + any | `QF_<ELEM>FS` | `BV-AND` with sets: `x subset {e_0, ..., e_(L-1)}`, plus one `not (x subset A_b)` per 1-bit of `2^L - K`. See [`SET-MASK`](#set-mask-bv-and-with-sets), default `INT` | |
+| `SET-MEM-<ELEM>` | SET + any | `QF_<ELEM>FS` | `x in {e_1, ..., e_K}` (set membership). [theory-independent](#theory-independent-encodings-encoding-elem), default `INT`. `SET-MEM-BV` and `SET-MEM-UF` are two of its variants | |
+| `SET-CLASSES-<ELEM>` | SET + any | `QF_<ELEM>FS` | No node variables: K sets `S_1..S_K` of node ids (n distinct elements) that partition all nodes, and no edge has both ends in the same `S_c`. See [`SET-CLASSES`](#set-classes-color-classes-instead-of-colors), default `INT` | |
+| `REL-JOIN-<ELEM>` | SET + relations + any | `ALL` | No node variables: one relation `C` between nodes and colors, and a single constraint `(E join C) n C = {}` for all edges at once. See [`REL-JOIN`](#rel-join-the-whole-graph-in-one-formula), default `INT` | |
+| `SEP-<ELEM>` | Separation logic + any | `ALL` | A heap of exactly K cells `c_1 \|-> e_1 * ... * c_K \|-> e_1`; each node points into it, and edges are `(u \|-> e_1) * (v \|-> e_1) * true` instead of `u != v`. See [`SEP`](#sep-colors-are-heap-cells), default `UF` | |
+| `ARR-EXP-<ELEM>` | ARRAY + any | `QF_A<ELEM>` | Sebastiani array chain with explicit array variables: `A_{j+1} = store(A_j, i_j, e_j)` for `j = 1..K` (`i_1` free, `i_j = e_j` otherwise), color `x = A_{K+1}[i_1]`. [theory-independent](#theory-independent-encodings-encoding-elem), default `INT` | |
+| `ARR-INL-<ELEM>` | ARRAY + any | `QF_A<ELEM>` | Same chain as `ARR-EXP`, but built as one nested `store(store(...))` term with no intermediate variables. Default `INT` | |
 | `ARR-MAP` | ARRAY | `QF_ALIA` | One global array with `A[c] = c` for `c = 1..K`; color `x = A[idx]` with `1 <= idx <= K`. Essentially LIA behind an array read, useful for measuring array overhead | |
 
-The `FF-*` encodings need cvc5 built with CoCoA (see [Prerequisites](#prerequisites)).
+The `FF-*` encodings need cvc5 built with CoCoA (see [Prerequisites](#prerequisites)). The four trig encodings can also be solved with dReal, which does find SAT models; see [dReal](#dreal-delta-complete-trig-solver).
 
 ### Bitwise bit-vector encodings
 
@@ -169,6 +186,193 @@ x^K = 1
 
 The edge constraint is the usual `u != v`.
 
+### Theory-independent encodings: `<ENCODING>-<ELEM>`
+
+Some encodings get all their structure from a "container" theory (sets, arrays, a heap, or just equality for `OR`) and only need *some* sort with enough distinct elements in it. These are written once, and the element theory is a separate parameter: `<ENCODING>-<ELEM>` on the command line, e.g. `SET-MEM-BV`, `ARR-EXP-STR`, `SET-CLASSES-DT`. The bare name (`SET-MEM`, `ARR-EXP`, ...) uses the default element theory, the one the encoding was first written with, so it gives the same formula and logic as before.
+
+| Encoding | Elements used for | Elements needed | Default |
+|---|---|---|---|
+| `OR` | the K colors: `x = e_1 or ... or e_K` | K | `UF` |
+| `SET-CUBE` | the bits of a color: `x subset {e_0, ..., e_(L-1)}` | L = `ceil(log2 K)` | `INT` |
+| `SET-MASK` | the same, with masks; see [`SET-MASK`](#set-mask-bv-and-with-sets) | L | `INT` |
+| `SET-MEM` | the K colors: `x in {e_1, ..., e_K}` | K | `INT` |
+| `SET-CLASSES` | the node ids inside the color classes | n (nodes) | `INT` |
+| `REL-JOIN` | the node ids and color ids inside the tuples (shared) | `max(n, K)` | `INT` |
+| `ARR-EXP`, `ARR-INL` | the array indices and stored values | K | `INT` |
+| `SEP` | the location and data sort of the heap | K + 1 | `UF` |
+
+`UF`, `STRING` and `LIST-DT` are `OR` with a fixed element theory (`STRING` uses the literals `"A", "B", ...` instead of `"0", "1", ...`). They are kept as their own encodings, since they are the baselines for their theories.
+
+**Element theories.** Everything theory-specific lives in one place: an `ElementTheory` class (in `smt_solver_cvc5.cpp`) returns a sort, n pairwise-distinct elements of it, any side constraints needed to make them distinct, and its part of the logic name.
+
+| `<ELEM>` | Elements `e_0, ..., e_(n-1)` | Logic part |
+|---|---|---|
+| `INT` | Integers `0, ..., n-1` | `LIA` |
+| `REAL` | Reals `0, ..., n-1` | `LRA` |
+| `BV` | Bit-vectors `0, ..., n-1` of the smallest width that holds them | `BV` |
+| `STR` | String literals `"0", ..., "n-1"` | `S` |
+| `UF` | Constants `E0, ..., E(n-1)` of an uninterpreted sort, plus `(distinct E0 ... E(n-1))` | `UF` |
+| `DT` | Constructors of the enumeration datatype `Elem = E0 \| ... \| E(n-1)` | `DT` |
+| `FF` | `0, ..., n-1` in `GF(p)`, p the smallest prime `>= n` (needs cvc5 with CoCoA) | `FF` |
+| `FP` | The n Float32 values after 1.0, as in `FP`. The containers compare elements with `=`, not `fp.eq`, so NaN and `+-0` play no role | `FP` |
+| `BOOL` | `false`, `true`. Only 2 elements, so it fails with an error when more are needed | (none) |
+
+**Logic.** The logic is `QF_` + the container's part (`FS` for sets, `A` for arrays, nothing for `OR`) + the element's part: `SET-MEM-BV` runs in `QF_BVFS`, `ARR-EXP-STR` in `QF_AS`, `SET-CUBE` in `QF_LIAFS` (the same logic as `QF_FSLIA`; cvc5 accepts the parts in any order). `REL-JOIN` and `SEP` stay in `ALL`, since tuples and separation logic have no logic name to compose. The choice matters: on `myciel4` with K = 5, `ARR-EXP` takes 0.1 s in `QF_ALIA` and 0.6 s in `ALL`, and `SET-CUBE` goes from 6.3 s to 2.3 s.
+
+**Adding an element theory** means writing one `ElementTheory` subclass and adding one line to `make_element_theory`. Every theory-independent encoding can then use it. **Adding an encoding** means deriving from `ElementGenericColorer` (which provides `make_domain(n)`, `set_of` and `set_of_bits`) and adding one line to `GENERIC_ENCODINGS` and to `make_generic_colorer`.
+
+**Results.** `myciel3` with K = 3 (UNSAT) / `myciel4` with K = 5 (SAT), in seconds, with a 20 s timeout. Four runs went in parallel, so the times are noisy.
+
+| Encoding | `INT` | `REAL` | `BV` | `STR` | `UF` | `DT` | `FF` | `FP` |
+|---|---|---|---|---|---|---|---|---|
+| `OR` | 0.12 / 0.12 | 0.11 / 0.11 | 0.11 / 0.11 | 0.11 / 0.11 | 0.11 / 0.11 | 0.11 / 0.11 | 0.11 / 0.11 | 0.11 / 0.21 |
+| `SET-CUBE` | 1.02 / 10.72 | 0.91 / 15.23 | 1.61 / 2.91 | 1.01 / 5.32 | 0.61 / 5.42 | 0.31 / 0.31 | timeout / timeout | 3.62 / timeout |
+| `SET-MASK` | 1.12 / 14.83 | 0.81 / 5.82 | 0.71 / timeout | 1.01 / timeout | 0.61 / 5.32 | 0.31 / 0.51 | timeout / timeout | 1.71 / timeout |
+| `SET-MEM` | 0.12 / 0.12 | 0.11 / 0.11 | 0.11 / 0.11 | 0.11 / 0.11 | 0.11 / 0.11 | 0.11 / 0.11 | 0.11 / 0.11 | 0.11 / 0.31 |
+| `SET-CLASSES` | 0.12 / 0.22 | 0.11 / 0.11 | 0.11 / 0.21 | 0.11 / 0.21 | 0.11 / 0.11 | 0.11 / 0.11 | 0.11 / 0.11 | 0.11 / 0.21 |
+| `REL-JOIN` | 0.32 / 8.22 | 0.21 / 8.12 | 0.21 / 8.02 | 0.31 / 10.13 | 0.11 / 6.22 | 0.21 / 7.82 | 0.21 / 8.02 | 0.31 / 8.52 |
+| `ARR-EXP` | 0.11 / 0.11 | 0.11 / 0.11 | 0.11 / 0.11 | 0.21 / 1.51 | 0.11 / 0.11 | 0.11 / 0.11 | timeout / timeout | 0.31 / 3.42 |
+| `ARR-INL` | 0.11 / 0.11 | 0.11 / 0.11 | 0.11 / 0.11 | 0.21 / 0.71 | 0.11 / 0.11 | 0.11 / 0.11 | timeout / timeout | 0.31 / 3.72 |
+| `SEP` | 0.21 / timeout | 0.21 / timeout | 0.21 / timeout | 0.61 / 3.52 | 0.21 / 19.74 | 0.81 / 1.61 | 0.21 / timeout | 0.31 / 15.53 |
+
+The element theory hardly matters when the elements are only compared for equality against a short list (`OR`, `SET-MEM`, `SET-CLASSES`). It matters a lot when the container builds many terms out of them: the set encodings over subsets (`SET-CUBE`, `SET-MASK`) are fastest with `DT`, whose elements carry no structure beyond being distinct constructors, and slowest with `FF` and `FP`. `FF` makes the array chain time out even though the same elements are fine under `SET-MEM`.
+
+**Correctness checks.** Every combination was run on the complete graphs `K_2` .. `K_5` (`K_K` SAT, `K_(K+1)` UNSAT) and on `myciel3` (K = 4 SAT, K = 3 UNSAT), and every SAT model was checked against the edge list. All answers were correct. A few `FF` combinations timed out at 15 s on the UNSAT cases, and `BOOL` stops with an error wherever more than 2 elements are needed.
+
+#### `SET-MASK`: `BV-AND` with sets
+
+`SET-MASK` is `BV-AND` with every bit-vector replaced by a finite set. Pick L with `2^L >= K` and L pairwise-distinct elements `e_0, ..., e_(L-1)`. A node is a set `x`, and bit j of the old bit-vector becomes "`e_j` is in `x`":
+
+| `BV-AND` | `SET-MASK` |
+|---|---|
+| bit-vector of width L | `x subset U`, `U = {e_0, ..., e_(L-1)}` (the `2^L` subsets of U) |
+| `(x & ~a) != 0` ("x has a 1 outside a") | `not (x subset A)`, A = the elements of the 1-bits of `a` |
+
+So the domain is "be a subset of U", and when K is not a power of 2, the extra `E = 2^L - K` subsets are removed with sets the node must *not* be a subset of: one `A_b` for each 1-bit `b` of E, built from the same maximal element `a_b` as in [`BV-AND`](#bv-and-excluding-values-with-and-masks). For K = 11 (L = 4, E = 5 = `0101`): `a_2 = 0011` and `a_0 = 0100`, so each node gets `x subset {e_0, e_1, e_2, e_3}`, `not (x subset {e_0, e_1})` and `not (x subset {e_2})`. Compared to `SET-CUBE`, which forbids each of the E extra subsets with its own `x != S`, this needs only `popcount(E) <= L - 1` literals per node. Edges are the usual `u != v`, as set equality.
+
+### Encodings beyond the skeleton
+
+The encodings in this section were added to explore unusual ideas rather than to be fast: different domains, edge constraints that are not `!=`, and encodings with no per-node variable at all. Two virtual hooks in `AbstractGraphColorer` make this possible: `edge_constraint(u, v)` receives the two nodes' terms and defaults to `u != v`, and `edge_constraint_between(u, v)` receives the node *ids*, for encodings where a node's color is not one term. `edge_constraint_between` may return a null term to assert nothing for that edge.
+
+**First results** (20 s timeout; every SAT model was checked against the edge list):
+
+| Encoding | `myciel3`, K = 4 (SAT) | `myciel3`, K = 3 (UNSAT) | `myciel4`, K = 5 (SAT) |
+|---|---|---|---|
+| `INT-MOD` | 0.03 s | 0.07 s | 0.06 s |
+| `INT-POW2` | 0.14 s | 0.30 s | 0.52 s |
+| `FP` | 0.21 s | 0.13 s | 0.44 s |
+| `NLRA-SQRT` | 3.75 s | timeout | timeout |
+| `NLRA-ROOTS` | 5.40 s | timeout | timeout |
+| `FF-NULL` | timeout | 0.03 s | timeout |
+| `PEANO` | 0.01 s | 0.06 s | 0.02 s |
+| `SET-CLASSES` | 0.02 s | 0.02 s | 0.10 s |
+| `REL-JOIN` | 0.21 s | 0.14 s | 6.22 s |
+| `SEP` | 0.31 s | 0.10 s | 11.81 s |
+
+`FF-NULL` shows the same SAT/UNSAT asymmetry as `FF-POLY` and `FF-ROOTS`: Gröbner bases find the Nullstellensatz certificate quickly but are slow at producing a solution. The algebraic `NLRA-*` encodings do find SAT models, unlike the trig ones, but are slow on UNSAT.
+
+#### `INT-MOD` and `INT-POW2`: integers in disguise
+
+**`INT-MOD`** gives each node an *unbounded* integer `x`, with no domain constraint at all. The color is `x mod K`, and edges compare residues: `x_u mod K != x_v mod K`. The search space is infinite, but only K residues matter, so the solver has to see that `x` and `x + K` are the same color. cvc5 handles `mod` by a constant inside linear arithmetic: it introduces `q = x div K` and `r = x mod K` with `x = K*q + r` and `0 <= r < K`, so internally it rediscovers the LIA encoding, with an extra free variable `q` per node. The printed model shows the residues (`0..K-1`), since the raw `x` values may all differ.
+
+**`BV-MOD`** is the same idea with bit-vectors: each node is an unconstrained 32-bit vector, the color is `x urem K`, and edges are `x_u urem K != x_v urem K`. A bit-vector cannot be unbounded, so 32 bits stands in for "far wider than needed": `2^32` values fold onto K colors. Unlike `INT-MOD`, there is no linear-arithmetic shortcut: `urem` by a constant is bit-blasted into a divider circuit for every node, so the solver sees a SAT problem much larger than `BV`'s. When K is a power of 2, cvc5 rewrites `urem` into taking the low bits, which is just `BV` with extra unused high bits.
+
+**`INT-POW2`** uses cvc5's `int.pow2` extension: `x = 2^e` with `0 <= e <= K-1`, so the colors are `1, 2, 4, ..., 2^(K-1)`. This is `BV-ONEHOT` without bit-vectors: one "bit" per color, as an integer. `int.pow2` is not linear, so cvc5 handles it lazily, with refinement lemmas checked against the current model (the same way it handles integer `iand`). The edges stay `x_u != x_v` on the powers, not on the exponents, so the solver has to reason about `pow2` and cannot just compare the `e`s.
+
+#### `FP`: the K floats after 1.0
+
+Floats are not dense. Between 1.0 and 2.0, Float32 (8 exponent bits, 23 stored significand bits) has exactly `2^23` values, `1 + m/2^23` for `m = 0, ..., 2^23 - 1`, one *ulp* apart. So the interval
+
+```
+1.0 <= x <= 1 + (K-1) * 2^-23
+```
+
+is a continuum of reals but holds exactly K floats. These are the colors. For K = 3 they are `1.0`, `1.00000012` and `1.00000024`, printed by cvc5 as bit patterns: sign `0`, exponent `01111111` (the bias, 127, which means `2^0`), fraction `0...00`, `0...01`, `0...10`. Both bounds are built directly from those bit patterns, so no rounding is involved in writing them.
+
+**`fp.eq` versus `=`.** IEEE equality is not SMT equality. `fp.eq` says `+0 = -0` (two different bit patterns that compare equal) and `NaN != NaN` (even a NaN compared with itself). `=` is identity of values, so `+0 != -0` and `NaN = NaN`. The edges here use `not (fp.eq u v)`. If the domain allowed NaN, every node could be NaN: `fp.eq(NaN, NaN)` is false, so every edge would hold and every graph would be 1-colorable. With signed zeros, `fp.eq` would instead merge two values into one color. The bounds rule both out: `fp.leq` is false whenever an argument is NaN, and `+-0` and the infinities lie outside `[1, 2)`. On this domain `fp.eq` and `=` agree. cvc5 bit-blasts floating point (via SymFPU), so this ends up as a bit-vector problem where the comparisons become IEEE comparison circuits.
+
+cvc5's default FP solver only accepts Float32 and Float64. A smaller format, such as 3 exponent bits and just enough significand bits for K, needs the experimental `--fp-exp` solver.
+
+#### `NLRA-SQRT` and `NLRA-ROOTS`: irrational but algebraic
+
+These two encodings test *why* the trig encodings never return SAT (see [dReal](#dreal-delta-complete-trig-solver)). The trig roots are irrational, but more importantly **transcendental**: π is not the root of any polynomial with integer coefficients. cvc5's nonlinear real solver works with **real algebraic numbers**, the roots of integer polynomials, which it stores exactly as a polynomial together with an isolating interval. So it can represent √2 but not π.
+
+**`NLRA-SQRT`**: `x > 0` and `(x^2 - 1)(x^2 - 2)...(x^2 - K) = 0`. The colors are `√1, √2, ..., √K`, mostly irrational. The answer to the question is: **SAT**. On the triangle with K = 3, cvc5 returns (polynomials written out more readably)
+
+```
+node_1: (_ real_algebraic_number <x^6 - 6x^4 + 11x^2 - 6, (11/8, 3/2)>)            = √2
+node_2: 1.0
+node_3: (_ real_algebraic_number <x^6 - 6x^4 + 11x^2 - 6, (3632373/2097152, 1816187/1048576)>) = √3
+```
+
+Each value is "the unique root of this polynomial in this interval": `x^6 - 6x^4 + 11x^2 - 6 = (x^2-1)(x^2-2)(x^2-3)`, the interval `(1.375, 1.5)` contains only √2, and the interval around 1.732 contains only √3. So irrationality is not the problem. Transcendence is.
+
+**`NLRA-ROOTS`**: the trig encoding written with algebra instead of trig. The K-th roots of unity `e^(2πij/K) = cos(2πj/K) + i sin(2πj/K)` are the corners of a regular K-gon on the unit circle. Each node is a point `(a, b)`, and `(a + bi)^K = 1` is expanded by multiplying `(re + im*i)(a + bi) = (re*a - im*b) + (re*b + im*a)i` K-1 times, giving two real polynomial equations: `Re = 1` and `Im = 0`. `a^2 + b^2 = 1` follows from them, but is asserted too as a hint. The coordinates `cos(2πj/K)` are algebraic, so cvc5 can find them. For K = 3 it returns `(-1/2, ±√3/2)` and `(1, 0)`, with `√3/2` given as the root of `4x^2 - 3`. Two nodes have the same color exactly when both coordinates agree, so the edge constraint is `a_u != a_v or b_u != b_v` (written with `edge_constraint_between`, since a node is two variables).
+
+#### `FF-NULL`: Nullstellensatz coloring
+
+A classic idea from algebraic combinatorics (Bayer 1982; De Loera, Lee, Margulies, Onn, *"Expressing combinatorial problems by systems of polynomial equations and Hilbert's Nullstellensatz"*, 2009): write graph coloring as a system of polynomial **equations**, with no `!=` at all. The domain is the same as `FF-ROOTS` (`x^K = 1` in `GF(p)`, `p = 1 mod K`), and each edge becomes
+
+```
+u^(K-1) + u^(K-2) v + u^(K-3) v^2 + ... + v^(K-1) = 0
+```
+
+**Why this means `u != v`.** The left side is `(u^K - v^K) / (u - v)`, the geometric-series factorization of `u^K - v^K`. For two K-th roots of unity:
+
+- If `u != v`: `u^K - v^K = 1 - 1 = 0` while `u - v != 0`, so the quotient is 0.
+- If `u = v`: every term is `u^(K-1)`, so the sum is `K * u^(K-1)`. `u` is nonzero, and `K` is nonzero in `GF(p)` because `p = 1 (mod K)` means `p > K`, so p does not divide K. A product of nonzero field elements is nonzero, so the equation fails.
+
+For K = 3, the edge polynomial is `u^2 + uv + v^2 = 0`. In `GF(7)` with colors `{1, 2, 4}`: `1 + 2 + 4 = 7 = 0` for `(u, v) = (1, 2)`, and `3 * 1 = 3 != 0` for `u = v = 1`.
+
+The point of the theorem: the graph is **not** K-colorable exactly when 1 lies in the ideal generated by these polynomials, i.e. `1 = sum of g_i * f_i` for some polynomials `g_i`. That identity, a *Nullstellensatz certificate*, is a purely algebraic proof of non-colorability. cvc5's finite-field solver works with Gröbner bases, so an UNSAT answer here comes from deriving exactly such a certificate. Each edge polynomial has K terms, so the formula grows with `K * |E|`. It needs cvc5 built with CoCoA, like the other `FF-*` encodings.
+
+#### `PEANO`: unary naturals
+
+A recursive datatype `Nat = Z | S(pred: Nat)`, with the colors `Z, S(Z), S(S(Z)), ..., S^(K-1)(Z)`. `LIST-DT` lists its K constructors explicitly. Here there is only one constructor shape, and the depth is bounded with a single clause per node, built from *testers* (`is-S`) and the *selector* `pred`:
+
+```
+not (is-S(x) and is-S(pred x) and is-S(pred (pred x)) and ... and is-S(pred^(K-1) x))
+```
+
+"x is not K successors deep". In SMT-LIB, a selector applied to the wrong constructor (`pred Z`) is unconstrained and can be any value. That is harmless here: if `pred^j x` is `Z` for some `j < K`, the conjunct `is-S(pred^j x)` is already false, so the conjunction is false no matter what the later, unconstrained terms are. If `x` has depth `>= K`, all K testers are true and the clause rules it out. The datatype solver has to *build* the colors by splitting on constructors, instead of choosing from a list. (cvc5 has an internal `dt.size` function that would express "depth < K" directly, but it is not exposed through the API or the SMT-LIB parser.)
+
+#### `SET-CLASSES`: color classes instead of colors
+
+The usual encodings ask "which color does node i get?". This one asks "which nodes form color class c?". There are no node variables at all, just K set variables `S_1, ..., S_K` over the node ids:
+
+- **Partition**: `S_1 u ... u S_K = {1, ..., n}` (every node gets a color) and `S_a n S_b = {}` for `a != b` (at most one color).
+- **Independent sets**: for every edge `(u, v)` and every class `c`, `not (u in S_c and v in S_c)`. This is the only place edges appear, through `edge_constraint_between`.
+
+A node's color is the class that contains it, read from the model by evaluating `i in S_c`. With an element theory other than `INT`, the node ids are n distinct elements of that theory instead of `1, ..., n`. This is the view behind set-partitioning and column-generation approaches to coloring, where each color class is an independent set. Here cvc5's set solver has to reason about membership, union and intersection over n elements and K sets.
+
+#### `REL-JOIN`: the whole graph in one formula
+
+cvc5 supports **relations**, sets of tuples, with relational join, product and transpose. The edge set becomes a constant binary relation `E = {(u, v) | (u, v) is an edge}`, and the coloring is a single unknown relation `C` between nodes and colors. The whole problem is three constraints, no matter how many edges there are:
+
+```
+C  subset  Nodes x Colors          Nodes = {(1), ..., (n)},  Colors = {(1), ..., (K)}
+C join Colors = Nodes              every node has at least one color
+(E join C) n C = {}                no node shares a color with a neighbour
+```
+
+The join of a relation of pairs with a relation of pairs matches the inner columns: `E join C = {(u, c) | (u, v) in E and (v, c) in C}`, "u has a neighbour of color c". Intersecting with `C` gives the pairs where u itself also has color c, i.e. the conflicts. Since the condition is symmetric in u and v, `E` only needs each edge once. Similarly, `C join Colors` has arity `2 + 1 - 2 = 1`: the nodes that have some color in `Colors`.
+
+`C` is **not** required to be a function. A node may get several colors. If the constraints hold, every color of u differs from every color of each neighbour, so picking any one color per node (the model printer takes the smallest) gives a valid coloring. Adding "at most one color" (e.g. `transpose(C) join C subset identity`) would make the formula bigger without changing the answer. `edge_constraint_between` returns a null term, so no per-edge constraints are asserted at all. With an element theory other than `INT`, nodes and colors are named by `max(n, K)` distinct elements of that theory: node i is the i-th element and color c the c-th.
+
+#### `SEP`: colors are heap cells
+
+Separation logic is a logic for reasoning about pointers and heaps. `x |-> d` means "the heap is exactly one cell, at location x, holding d", and `P * Q` (*separating conjunction*) means "the heap splits into two **disjoint** parts, one satisfying P and one satisfying Q". cvc5 supports it with a heap whose location and data sorts are declared once. Here both are the element sort (an uninterpreted sort by default), and every cell holds the element `e_1`, written `0` below. All top-level assertions talk about the same heap:
+
+```
+c_1 |-> 0 * c_2 |-> 0 * ... * c_K |-> 0         the heap is exactly K distinct cells
+(x |-> 0) * true                                 node x points to a cell of the heap
+(u |-> 0) * (v |-> 0) * true                     edge: u and v point to two different cells
+```
+
+The first line uses `*` to make the K colors distinct: disjoint heap parts must have different locations. `true` matches any leftover heap, so `(x |-> 0) * true` says "x is allocated", and since the heap is exactly the K cells, x is one of them. The edge constraint is the twist: instead of `u != v`, it says the heap contains two *separate* cells, one at u and one at v, which can only happen if `u != v`. Separation does the job of disequality. cvc5's separation logic requires non-incremental mode, which this encoding sets. Models print the nodes as abstract locations (`@Elem_1`, ...).
+
+**The location sort needs K + 1 values.** cvc5 reserves one location, `sep.nil`, that can never be allocated. With a location sort of exactly K values (e.g. `SEP-DT` with K constructors, or `SEP-BV` when K is a power of 2), a K-cell heap cannot exist and every instance comes out UNSAT. So `SEP` asks the element theory for K + 1 elements, which only serves to size the sort. The heap must also be declared before the first assertion, which is why element theories return their side constraints (such as `distinct` for `UF`) instead of asserting them.
+
 ---
 
 ## Prerequisites
@@ -206,6 +410,18 @@ Both binaries need **cvc5** built with CaDiCaL and libpoly, and `smt_solver` als
 
    `~/smt-switch/deps/cvc5/bin/cvc5 --show-config` should then report `cocoa : yes`. Rebuild this project afterwards.
 
+4. *(Only for `smt_solver_dreal.py`.)* dReal 4.21.06.2, unpacked from `.deb` files into `~/dreal/root` (no root access, nothing installed system-wide). dReal's last release targets Ubuntu 20.04, so its ibex dependency comes from the dReal PPA's 24.04 build and the other libraries from your distribution:
+
+   ```bash
+   mkdir -p ~/dreal/debs && cd ~/dreal/debs
+   wget https://github.com/dreal/dreal4/releases/download/4.21.06.2/dreal_4.21.06.2_amd64.deb
+   wget "https://ppa.launchpadcontent.net/dreal/dreal/ubuntu/pool/main/libi/libibex-dev/libibex-dev_2.7.4.20251228014325.gitfde1b111a5439eb59b7260bb84189e1a0c9cffca~24.04_amd64.deb"
+   apt-get download libnlopt0 coinor-libclp1 coinor-libcoinutils3v5 liblapack3 libblas3 libgfortran5
+   for f in *.deb; do dpkg-deb -x "$f" ~/dreal/root; done
+   ```
+
+   `smt_solver_dreal.py` sets `LD_LIBRARY_PATH` itself. To use another location, set `DREAL_ROOT`.
+
 **Python side** (for the scripts)
 
 ```bash
@@ -225,7 +441,7 @@ cmake --build build -j
 
 This produces:
 
-- `build/smt_solver_cvc5`: native cvc5, all 17 encodings
+- `build/smt_solver_cvc5`: native cvc5, all 40 encodings
 - `build/smt_solver`: smt-switch, 8 encodings
 
 CMake finds smt-switch and cvc5 through `SMT_SWITCH_DIR`, which defaults to `~/smt-switch`. If your checkout is somewhere else, pass the path:
@@ -270,6 +486,14 @@ Example on the bundled triangle graph, which needs 3 colors:
 
 Supports `LIA`, `BV`, `NLRA`, `LIST-UF`, `LIST-DT`, `UF`, `STRING`, `STR-LEX`. Here `--model` must be the 4th argument.
 
+### `smt_solver_dreal.py`
+
+```bash
+./smt_solver_dreal.py <THEORY> <graph.col> <K> [--model] [--print-asserts] [--precision D] [--jobs N]
+```
+
+`THEORY` is one of `NLRA-SIN`, `NLRA-COS`, `NLRA-SINCOS`, `NLRA-SINPI`. `--print-asserts` prints the SMT-LIB query sent to dReal, `--precision` sets dReal's delta (default 0.001), and `--jobs` sets dReal's number of parallel search threads (default 8). Output is `SAT`, `UNSAT` or `UNKNOWN`, as for `smt_solver_cvc5`; models print each node's root, e.g. `node_1: 2*pi`.
+
 ### Graph format
 
 Standard DIMACS: comment lines start with `c`, a header `p edge <nodes> <edges>`, and one `e <u> <v>` line per edge with 1-based node ids.
@@ -302,16 +526,17 @@ python3 benchmark.py --solvers solvers_cvc5.conf --input-list my_list.txt --time
 | `--json FILE` | `optimal_k_values.json` | Graphs to run and the K to test for each. |
 | `--input-list FILE` | none | Text file with one graph path per line. Only JSON entries whose key matches a line are run. |
 | `--timeout SECONDS` | `20.0` | Timeout per solver per graph. |
+| `--k-offset N` | `0` | Test `K + N` instead of the JSON's K. `--k-offset -1` turns a run at the chromatic number into an UNSAT benchmark (graphs whose K drops below 1 are skipped). |
 | `--model` | off | Ask the solvers for models and print them all at the end. |
 
 **How it works**
 
 - Graphs and K values come from the JSON file. Keys are graph paths relative to the repo root. A value is either an integer K or an object `{"k": ..., "status": ...}`; entries with `"k": null` (for example `SKIPPED_TOO_LARGE`) are skipped.
 - Graphs whose file does not exist are skipped without a message. If the run reports fewer graphs than expected, check that the files are on disk (see [Getting benchmark graphs](#getting-benchmark-graphs)).
-- The K value does not have to be the chromatic number. Setting it one below gives an UNSAT benchmark.
+- The K value does not have to be the chromatic number. Setting it one below (or passing `--k-offset -1`) gives an UNSAT benchmark.
 - On startup the script writes `myciel3/4/5.col` into `benchmarks/` if they are missing. These come from networkx's `mycielski_graph(n)`, which is numbered differently from DIMACS: `benchmarks/myciel3.col` is a 5-cycle with chromatic number 3, while the DIMACS `benchmarks/DIMACS/myciel3.col` has 11 nodes and chromatic number 4.
 
-**Output.** Each row shows the graph, node and edge counts, K, and then for each solver `SAT <time>`, `UNS <time>` (UNSAT), `UNK <time>` (unknown) or `TIMEOUT`. Two summary rows follow: `AVERAGE` (timeouts count as the full timeout) and `SOLVED / TOTAL` (number of SAT results). Everything printed is also written to `logs/benchmark_results_<YYYYMMDD_HHMMSS>.txt`.
+**Output.** Each row shows the graph, node and edge counts, K, and then for each solver `SAT <time>`, `UNS <time>` (UNSAT), `UNK <time>` (unknown) or `TIMEOUT`. Two summary rows follow: `AVERAGE` (timeouts count as the full timeout) and `SOLVED / TOTAL` (number of SAT or UNSAT results). Everything printed is also written to `logs/benchmark_results_<YYYYMMDD_HHMMSS>.txt`.
 
 ### Solver configuration files
 
@@ -330,6 +555,28 @@ A `.conf` file is a Python list literal of solver entries. Comment out a line wi
 - `model_prefix`: label used when printing models
 
 Two names are handled specially: `OR-Tools` runs Google OR-Tools CP-SAT in-process, and `GC-CDCL` calls an external `gc` binary with `--bound K`.
+
+---
+
+## dReal: delta-complete trig solver
+
+cvc5 proves the trig encodings UNSAT but never SAT. The roots of sin and cos (other than 0) are irrational, and cvc5 only reports SAT for a model it can check exactly. No cvc5 option changes this. A **delta-complete** solver answers a weaker question: given a small delta, it returns either `unsat` (sound, as in cvc5) or `delta-sat`, meaning each constraint holds up to delta (`f(x) = 0` becomes `|f(x)| <= delta`). dReal does this with interval constraint propagation and branch-and-prune, and reports a narrow box around each variable, e.g. `node_1 : [3.1415926535897931, 3.1415926535897936]`.
+
+`smt_solver_dreal.py` uses the same encodings as `smt_solver_cvc5` with two differences:
+
+- **Edges are `|u - v| >= step/2`, not `u != v`.** Under delta-weakening, `u != v` is satisfied by `u = v`, so every graph would come back delta-sat. Distinct roots are a full step apart (pi, pi/2 or 1), so a separation of half a step means "different roots". (`abs` was faster than the equivalent `or` of two inequalities.)
+- **The box reaches half a step past the outermost roots**, so it still holds exactly K roots but none of them lies on its boundary. dReal has no exact pi, so pi is a decimal literal.
+
+A `delta-sat` answer becomes an exact coloring: each node is rounded to the nearest root, and the script checks that every node lands on one of the K roots and that no edge has both ends on the same root. Only then does it print `SAT`. If the check fails, it prints `UNKNOWN`. So a `SAT` from this script is a verified K-coloring, not an approximate one.
+
+**Performance.** dReal handles small graphs only. On `myciel3` (11 nodes) it answers both K = 4 (SAT, 0.1 s) and K = 3 (UNSAT, about 2 s). From about 20 nodes on, it mostly times out. Its parallel search (`--jobs`) is what makes `myciel4` (23 nodes, K = 5) solvable at all, but the result depends on luck: with 8 or 16 threads, repeated runs took 0.5-4 s or timed out after 15 s; with 1 or 4 threads it always timed out. Expect runtimes to vary from run to run. A larger delta did not help.
+
+To compare it with cvc5 on both sides of the chromatic number:
+
+```bash
+python3 benchmark.py --solvers solvers_trig.conf --input-list my_list.txt              # K = chromatic number (SAT)
+python3 benchmark.py --solvers solvers_trig.conf --input-list my_list.txt --k-offset -1 # K - 1 (UNSAT)
+```
 
 ---
 

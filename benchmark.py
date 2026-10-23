@@ -168,6 +168,7 @@ def main():
     parser.add_argument("--solvers", type=str, default="solvers_switch.conf", help="Path to the solvers configuration file")
     parser.add_argument("--input-list", type=str, help="Text file with a specific list of graph paths to test (one per line)")
     parser.add_argument("--timeout", type=float, default=DEFAULT_TIMEOUT, help="Timeout in seconds per solver per graph (default: 20.0)")
+    parser.add_argument("--k-offset", type=int, default=0, help="Test K + OFFSET instead of the JSON's K, e.g. -1 for UNSAT instances (default: 0)")
     args = parser.parse_args()
     
     if not os.path.exists(args.json):
@@ -197,8 +198,8 @@ def main():
         elif isinstance(data, dict):
             k = data.get("k")
             
-        if k is not None:
-            target_graphs[path] = k
+        if k is not None and k + args.k_offset >= 1:
+            target_graphs[path] = k + args.k_offset
             
     if args.input_list:
         if not os.path.exists(args.input_list):
@@ -223,6 +224,8 @@ def main():
     print(f"Logs are automatically being saved to: {log_filename}")
     print(f"Using Solvers Config: {args.solvers}")
     print(f"Total Valid Graphs to test: {len(target_graphs)}")
+    if args.k_offset:
+        print(f"K offset: {args.k_offset:+d} (each graph is tested with its JSON K {args.k_offset:+d})")
     print(f"Timeout per solver: {args.timeout:.1f}s\n")
     
     generate_small_benchmarks()
@@ -271,7 +274,7 @@ def main():
                 res, runtime, model_str = run_smt(solver['bin_path'], graph_path, k, args.model, args.timeout)
                 
             solver_runtimes[solver['name']].append(runtime)
-            if res == "SAT":
+            if res in ("SAT", "UNSAT"):
                 solver_solved[solver['name']] += 1
 
             if res in ["TIMEOUT", "ERROR"]:
