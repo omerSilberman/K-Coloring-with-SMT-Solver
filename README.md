@@ -56,6 +56,8 @@ The **Name** is the first argument passed to the solver binaries.
 | `BV-AND` | BV | `QF_BV` | Bit-vector of width `w = ceil(log2 K)`; one literal `(x & M) != 0` per 1-bit of `2^w - K` (none when K is a power of 2). See [Bitwise bit-vector encodings](#bitwise-bit-vector-encodings) | |
 | `BV-MOD` | BV | `QF_BV` | Unconstrained 32-bit vector `x`; the color is `x urem K`, and edges are `x_u urem K != x_v urem K`. `INT-MOD` with bit-vectors. See [`INT-MOD`, `INT-POW2`](#int-mod-and-int-pow2-integers-in-disguise) | |
 | `BV-ONEHOT` | BV | `QF_BV` | Bit-vector of width K with exactly one bit set: `x != 0` and `(x & (x-1)) = 0`. Edges are `(u & v) = 0` instead of `u != v`. See [Bitwise bit-vector encodings](#bitwise-bit-vector-encodings) | |
+| `BV-ORDER` | BV | `QF_BV` | Order (thermometer) encoding: width K-1, color c is the vector with its lowest c bits set, enforced by `(x & (x + 1)) = 0`. See [`BV-ORDER`](#bv-order-and-bv-order-shift-the-order-encoding) | |
+| `BV-ORDER-SHIFT` | BV | `QF_BV` | The same domain stated without an adder: `((x >> 1) & ~x) = 0` (no 1 above a 0) | |
 | `FP` | FP | `QF_FP` | Float32 `x` with `1.0 <= x <= 1 + (K-1)*2^-23`: the K consecutive floats starting at 1.0. Edges use `fp.eq`. See [`FP`](#fp-the-k-floats-after-10) | |
 | `NLRA` | NLRA | `QF_NRA` | Real `x` with `(x-1)(x-2)...(x-K) = 0` | ✓ |
 | `NLRA-SQRT` | NLRA | `QF_NRA` | Real `x > 0` with `(x^2-1)(x^2-2)...(x^2-K) = 0`: the colors are `sqrt(1), ..., sqrt(K)`, irrational but algebraic. See [`NLRA-SQRT`, `NLRA-ROOTS`](#nlra-sqrt-and-nlra-roots-irrational-but-algebraic) | |
@@ -164,6 +166,52 @@ Each node is a bit-vector of width K, and color `c` is the vector with only bit 
 Since two one-hot vectors are equal exactly when they share their single bit, the edge constraint becomes bitwise too: `(u & v) = 0` instead of `u != v`. To support this, `AbstractGraphColorer` has a virtual `edge_constraint(u, v)` that defaults to `u != v`.
 
 This is the opposite trade-off to `BV-AND`: width K instead of `ceil(log2 K)`, but every color is a single bit, so after bit-blasting the solver works with K Boolean "node has color c" variables, close to the classic SAT encoding of graph coloring. It is not purely bitwise, since `x - 1` is a subtraction.
+
+#### `BV-ORDER` and `BV-ORDER-SHIFT`: the order encoding
+
+SAT encodings of a finite domain come in three classic kinds, and the bit-vector encodings now cover all of them: the *log* encoding (`BV`: ⌈log₂ K⌉ bits), the *direct* encoding (`BV-ONEHOT`, and without bit-vectors `BOOL-DIRECT`: one bit per color), and the *order* encoding. In the order encoding, bit j means "the color is greater than j", so the colors are *thermometer codes*: width K-1, and color c has its lowest c bits set.
+
+| K = 4 | color 0 | color 1 | color 2 | color 3 |
+|---|---|---|---|---|
+| x | `000` | `001` | `011` | `111` |
+
+These are exactly the vectors with **no 1 above a 0**. The two encodings say this differently:
+
+- **`BV-ORDER`**: `(x & (x + 1)) = 0`. Adding 1 to `0…011` turns the trailing ones into zeros and sets the next bit, `0…100`, so the AND is 0. A vector with a 0 below some 1 keeps that 1 after adding 1, so the AND is not 0. The all-ones vector wraps around to `0…0`, so it is allowed too. That gives c = 0, …, K-1: exactly K values.
+- **`BV-ORDER-SHIFT`**: `((x >> 1) & ~x) = 0`. Bit b of `x >> 1` is bit b+1 of x, so the AND finds every position where bit b+1 is set and bit b is not. This is purely bitwise, with no adder in the circuit.
+
+Both use plain `u != v` edges. With K = 1 the width would be 0, so the single color is a 1-bit vector fixed to 0. Both were checked on complete graphs (`K_K` SAT, `K_(K+1)` UNSAT) for K = 1..8.
+
+**Results** (same setup as [`BOOL-DIRECT`](#bool-direct-the-plain-sat-encoding): every graph with a proven χ at K = χ and χ - 1, 30 s timeout, every SAT model checked):
+
+| | `BV` | `BV-ORDER` | `BV-ORDER-SHIFT` |
+|---|---|---|---|
+| SAT solved (of 56) | **55** | 48 | 49 |
+| SAT, fastest | **52** | 1 | 2 |
+| SAT, median speed vs `BV` | 1.00x | 0.57x | 0.58x |
+| UNSAT solved (of 56) | **38** | 36 | 35 |
+| UNSAT, fastest | **36** | 1 | 1 |
+| UNSAT, median speed vs `BV` | 1.00x | 0.71x | 0.75x |
+
+Selected instances, in seconds (`BOOL-DIRECT` from its own run, for reference):
+
+| Graph | K | | `BV` | `BV-ORDER` | `BV-ORDER-SHIFT` | `BOOL-DIRECT` |
+|---|---|---|---|---|---|---|
+| `le450_5b` | 5 | SAT | **9.99** | T/O | 16.39 | (0.73) |
+| `le450_15a` | 15 | SAT | **22.14** | T/O | T/O | (3.51) |
+| `fpsol2.i.2` | 30 | SAT | **3.67** | T/O | T/O | (5.76) |
+| `mulsol.i.1` | 49 | SAT | **0.81** | 22.10 | 29.14 | (4.17) |
+| `miles1500` | 73 | SAT | **5.85** | T/O | T/O | (17.07) |
+| `queen6_6` | 6 | UNSAT | 7.02 | 4.88 | **4.29** | (2.73) |
+| `4-Insertions_3` | 3 | UNSAT | 3.02 | **2.47** | 2.67 | (0.78) |
+| `anna` | 10 | UNSAT | **1.06** | 7.31 | 4.87 | (T/O) |
+| `huck` | 10 | UNSAT | **1.61** | 6.01 | 3.79 | (T/O) |
+| `queen8_12` | 11 | UNSAT | **10.90** | 25.24 | 20.27 | (T/O) |
+| `4-FullIns_4` | 7 | UNSAT | **16.12** | T/O | T/O | (T/O) |
+
+**The order encoding loses to `BV` almost everywhere**, by about 2x on SAT and 1.4x on UNSAT, and it never wins by more than 1.6x (`queen6_6`, UNSAT). The reason is the constraint it is good at. The order encoding is the standard choice for *ordering* constraints: `x ≤ c` is the single bit "not greater than c", and `x ≤ y` propagates bit by bit. Graph coloring has no ordering constraints, only `≠`, and for `≠` the order encoding combines the weaknesses of the other two: it is as large as the direct encoding (K-1 bits per node; from K = 15 on, `BV-ORDER` times out on half the SAT instances), and `u != v` between thermometer codes is a "some bit differs" disequality that propagates as weakly as in the log encoding. The adder and the shift version behave about the same: bit-blasting turns both into small circuits, and the difference is noise.
+
+One detail stands out. On the clique-heavy UNSAT instances (`anna`, `huck`, `david`, `jean`), the order encoding needs a few seconds where `BOOL-DIRECT` times out. Both have about K bits per node, so the weakness of `BOOL-DIRECT` there is specific to the direct encoding's one-variable-per-color layout, not to the number of variables.
 
 ### `FF-ROOTS`: K-th roots of unity
 

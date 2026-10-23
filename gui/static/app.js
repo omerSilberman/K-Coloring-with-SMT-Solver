@@ -20,6 +20,8 @@ const HINTS = {
   "FF-PRIME": "Only accepts a prime K.",
   "STR-LEX": "Only supports K ≤ 50.",
   "IDL": "Colors are node − zero; the model shows the shifted values.",
+  "BV-ORDER": "Order (thermometer) encoding: width K−1, color c = the lowest c bits set (000, 001, 011, 111). Domain: x & (x + 1) = 0.",
+  "BV-ORDER-SHIFT": "The same order encoding with a purely bitwise domain: (x ≫ 1) & ~x = 0, i.e. no 1 above a 0.",
   "BOOL-DIRECT": "Plain SAT: Booleans c(i, j) = \"node i has color j\", at least one color per node, and ¬c(u, j) ∨ ¬c(v, j) per edge and color. No theory at all.",
   "BOOL-DIRECT-AMO": "BOOL-DIRECT plus at-most-one clauses, so every node gets exactly one color.",
   "UF-CARD": "No colors at all: nodes of an uninterpreted sort, edges u ≠ v, and one constraint |Color| ≤ K for cvc5's cardinality solver.",

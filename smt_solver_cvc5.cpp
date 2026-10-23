@@ -610,6 +610,47 @@ protected:
 };
 
 // ============================================================================
+// BIT-VECTOR (Order / "thermometer" encoding)
+// ============================================================================
+// Width K-1, and color c is the vector with its lowest c bits set (c = 0..K-1):
+//   000, 001, 011, 111   for K = 4
+// These are exactly the x with no 1 above a 0, stated two ways:
+//   BV-ORDER:        (x & (x + 1)) = 0      x + 1 is a power of 2 (or wraps to 0 for 1...1)
+//   BV-ORDER-SHIFT:  ((x >> 1) & ~x) = 0    bit b+1 set implies bit b set (no adder)
+// Edges stay u != v. With K = 1 the width would be 0, so x is 1 bit fixed to 0.
+class BvOrderColorer : public AbstractGraphColorer {
+private:
+    bool use_shift;
+public:
+    BvOrderColorer(int k, bool model, bool print, bool use_shift)
+        : AbstractGraphColorer(k, model, print), use_shift(use_shift) {}
+protected:
+    void configure_theory() override { solver.setLogic("QF_BV"); }
+    void build_variables_and_bounds() override {
+        int width = max(K - 1, 1);
+        cvc5::Sort bv_sort = tm.mkBitVectorSort(width);
+        cvc5::Term zero = tm.mkBitVector(width, 0), one = tm.mkBitVector(width, 1);
+        for (int i = 1; i <= num_nodes; i++) {
+            cvc5::Term x = tm.mkConst(bv_sort, "node_" + to_string(i));
+            node_vars[i] = x;
+            if (K == 1) {
+                solver.assertFormula(tm.mkTerm(cvc5::Kind::EQUAL, {x, zero}));
+                continue;
+            }
+            cvc5::Term bad;
+            if (use_shift) {
+                cvc5::Term above = tm.mkTerm(cvc5::Kind::BITVECTOR_LSHR, {x, one});
+                bad = tm.mkTerm(cvc5::Kind::BITVECTOR_AND, {above, tm.mkTerm(cvc5::Kind::BITVECTOR_NOT, {x})});
+            } else {
+                cvc5::Term next = tm.mkTerm(cvc5::Kind::BITVECTOR_ADD, {x, one});
+                bad = tm.mkTerm(cvc5::Kind::BITVECTOR_AND, {x, next});
+            }
+            solver.assertFormula(tm.mkTerm(cvc5::Kind::EQUAL, {bad, zero}));
+        }
+    }
+};
+
+// ============================================================================
 // FLOATING POINT (the K floats right after 1.0)
 // ============================================================================
 // Float32 (8 exponent bits, 23 stored significand bits; cvc5's default FP solver
@@ -1882,7 +1923,8 @@ int main(int argc, char** argv) {
             cout << "                   (NAME alone means NAME=true)" << endl;
             cout << "  --help, -h       Show this help message" << endl;
             cout << "\nAvailable Theories:" << endl;
-            cout << "  LIA, IDL, INT-MOD, INT-POW2, BV, BV-ZERO, BV-AND, BV-MOD, BV-ONEHOT, FP," << endl;
+            cout << "  LIA, IDL, INT-MOD, INT-POW2, BV, BV-ZERO, BV-AND, BV-MOD, BV-ONEHOT," << endl;
+            cout << "  BV-ORDER, BV-ORDER-SHIFT, FP," << endl;
             cout << "  NLRA, NLRA-SQRT, NLRA-ROOTS, NLRA-SIN, NLRA-COS, NLRA-SINCOS, NLRA-SINPI," << endl;
             cout << "  FF-PRIME, FF-POLY, FF-ROOTS, FF-NULL, LIST-UF, LIST-DT, PEANO, UF, UF-CARD," << endl;
             cout << "  BOOL-DIRECT, BOOL-DIRECT-AMO," << endl;
@@ -1958,6 +2000,10 @@ int main(int argc, char** argv) {
             colorer = new BvAndColorer(K, produce_model, print_asserts);
         } else if (theory == "BV-MOD") {
             colorer = new BvModColorer(K, produce_model, print_asserts);
+        } else if (theory == "BV-ORDER") {
+            colorer = new BvOrderColorer(K, produce_model, print_asserts, false);
+        } else if (theory == "BV-ORDER-SHIFT") {
+            colorer = new BvOrderColorer(K, produce_model, print_asserts, true);
         } else if (theory == "BV-ONEHOT") {
             colorer = new BvOneHotColorer(K, produce_model, print_asserts);
         } else if (theory == "FP") {
