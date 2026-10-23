@@ -155,6 +155,49 @@ select[size] option:checked { background: var(--accent-soft); color: var(--text)
 }
 .chip b { color: var(--text); font-weight: 650; }
 
+details.options summary {
+  cursor: pointer;
+  list-style: none;
+  display: flex; align-items: center; gap: 8px;
+  font-size: 12px; font-weight: 650; text-transform: uppercase; letter-spacing: .06em; color: var(--muted);
+  user-select: none;
+}
+details.options summary::-webkit-details-marker { display: none; }
+details.options summary::before {
+  content: "";
+  width: 6px; height: 6px;
+  border-right: 2px solid currentColor; border-bottom: 2px solid currentColor;
+  transform: rotate(-45deg);
+  transition: transform .15s;
+  margin-right: 2px;
+}
+details.options[open] summary::before { transform: rotate(45deg); }
+details.options summary:hover { color: var(--text); }
+.options-active {
+  text-transform: none; letter-spacing: 0;
+  font-size: 11px; font-weight: 600;
+  padding: 1px 8px; border-radius: 999px;
+  background: var(--accent-soft); color: var(--accent);
+}
+.options-body { display: flex; flex-direction: column; gap: 7px; margin-top: 9px; }
+.options-body .hint { font-size: 12px; }
+.label-note { text-transform: none; letter-spacing: 0; font-weight: 500; color: var(--muted); opacity: .8; margin-left: 4px; }
+button.chip.toggle {
+  border: 1px solid var(--line);
+  background: var(--panel);
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+  display: inline-flex; align-items: center; gap: 5px;
+  transition: background .15s, border-color .15s, color .15s;
+}
+button.chip.toggle:hover { border-color: var(--accent); color: var(--text); }
+button.chip.toggle.on { background: var(--accent-soft); border-color: var(--accent); color: var(--text); font-weight: 600; }
+button.chip.toggle.on::before { content: "✓"; color: var(--accent); }
+button.chip.toggle.overridden { text-decoration: line-through; opacity: .55; }
+.hint.error { color: var(--unsat); }
+#custom-options { font: 12px var(--mono); padding: 6px 9px; }
+
 .segmented { display: inline-flex; background: var(--soft); border-radius: 9px; padding: 3px; gap: 2px; }
 .segmented.wrap { flex-wrap: wrap; }
 .segmented button {

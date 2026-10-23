@@ -60,6 +60,16 @@
         <div id="elements" class="segmented wrap"></div>
       </div>
 
+      <details class="field options" id="options-field" hidden>
+        <summary><span class="summary-title">cvc5 options</span> <span id="options-active" class="options-active" hidden></span></summary>
+        <div class="options-body">
+          <p class="hint">Click to toggle. Hover a chip to see what it does.</p>
+          <div id="option-chips" class="chips"></div>
+          <input id="custom-options" type="text" placeholder="More options: NAME=VALUE, NAME=VALUE…" autocomplete="off" spellcheck="false">
+          <p id="option-error" class="hint error" hidden></p>
+        </div>
+      </details>
+
       <div class="field two">
         <div>
           <label for="k">K (colors)</label>

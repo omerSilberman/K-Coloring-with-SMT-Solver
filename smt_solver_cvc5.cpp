@@ -21,6 +21,7 @@ protected:
     bool print_asserts;
     
     vector<pair<int, int>> edges;
+    vector<pair<string, string>> cvc5_options;  // from --opt NAME=VALUE
     cvc5::TermManager tm; // CVC5 requires a TermManager
     cvc5::Solver solver;  // Native CVC5 Solver
     vector<cvc5::Term> node_vars;
@@ -60,7 +61,14 @@ public:
         node_vars.resize(num_nodes + 1);
     }
 
+    // cvc5 options to set before the encoding configures the solver
+    void set_cvc5_options(const vector<pair<string, string>>& options) { cvc5_options = options; }
+
     void solve() {
+        // Before configure_theory, so options an encoding requires (e.g. SEP's) still win
+        for (const auto& [name, value] : cvc5_options) {
+            solver.setOption(name, value);
+        }
         configure_theory();              
         build_variables_and_bounds();    
         build_universal_edge_constraints(); 
@@ -1803,6 +1811,7 @@ static AbstractGraphColorer* make_generic_colorer(const string& theory, int K, b
 int main(int argc, char** argv) {
     bool produce_model = false;
     bool print_asserts = false;
+    vector<pair<string, string>> cvc5_options;
     vector<string> pos_args;
 
     // Parse command line arguments
@@ -1813,6 +1822,8 @@ int main(int argc, char** argv) {
             cout << "Options:" << endl;
             cout << "  --model          Produce and print the coloring model if SAT" << endl;
             cout << "  --print-asserts  Print all asserted SMT formulas before solving" << endl;
+            cout << "  --opt NAME=VALUE Set a cvc5 option (repeatable), e.g. --opt bitblast=eager" << endl;
+            cout << "                   (NAME alone means NAME=true)" << endl;
             cout << "  --help, -h       Show this help message" << endl;
             cout << "\nAvailable Theories:" << endl;
             cout << "  LIA, IDL, INT-MOD, INT-POW2, BV, BV-ZERO, BV-AND, BV-MOD, BV-ONEHOT, FP," << endl;
@@ -1828,6 +1839,24 @@ int main(int argc, char** argv) {
             produce_model = true;
         } else if (arg == "--print-asserts") {
             print_asserts = true;
+        } else if (arg == "--opt" || arg.rfind("--opt=", 0) == 0) {
+            string option;
+            if (arg == "--opt") {
+                if (i + 1 >= argc) {
+                    cerr << "Error: --opt needs NAME=VALUE." << endl;
+                    return 1;
+                }
+                option = argv[++i];
+            } else {
+                option = arg.substr(6);
+            }
+            size_t eq = option.find('=');
+            if (eq == 0 || option.empty()) {
+                cerr << "Error: bad --opt '" << option << "', expected NAME=VALUE." << endl;
+                return 1;
+            }
+            if (eq == string::npos) cvc5_options.push_back({option, "true"});
+            else cvc5_options.push_back({option.substr(0, eq), option.substr(eq + 1)});
         } else {
             pos_args.push_back(arg);
         }
@@ -1925,6 +1954,7 @@ int main(int argc, char** argv) {
             return 1;
         }
 
+        colorer->set_cvc5_options(cvc5_options);
         colorer->load_dimacs(filename);
         colorer->solve();
 

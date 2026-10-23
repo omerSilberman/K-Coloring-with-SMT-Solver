@@ -22,6 +22,27 @@ const HINTS = {
   "IDL": "Colors are node − zero; the model shows the shifted values.",
   "UF-CARD": "No colors at all: nodes of an uninterpreted sort, edges u ≠ v, and one constraint |Color| ≤ K for cvc5's cardinality solver.",
 };
+// Curated cvc5 options, offered when they apply to the solver's theory. The help text gives
+// what each one did to BV in the benchmark (README, "cvc5 options for BV").
+const PURE_BV = t => /^BV(-|$)/.test(t);  // the QF_BV encodings; eager bit-blasting needs pure QF_BV
+const HAS_BV = t => PURE_BV(t) || t === "FP" || /-BV$/.test(t);
+const OPTION_CHIPS = [
+  { opt: "bitblast=eager", label: "Eager bit-blasting", applies: PURE_BV,
+    help: "Translate the whole formula to CNF up front and hand it to the SAT solver in one go, instead of bit-blasting lazily inside the SMT loop. For BV: about 15% slower (lazy mode already sends everything to CaDiCaL at once)." },
+  { opt: "bv-solver=bitblast-internal", label: "Internal bit-blaster", applies: HAS_BV,
+    help: "Bit-blast into cvc5's main SAT solver instead of a separate bit-vector SAT solver. For BV: 1.3-1.5x faster on SAT instances with many colors (K = 30-54), much slower on most others." },
+  { opt: "simplification=none", label: "No preprocessing", applies: () => true,
+    help: "Skip cvc5's non-clausal simplification before solving. For BV: no measurable effect." },
+  { opt: "decision=justification", label: "Justification decisions", applies: () => true,
+    help: "Decide on literals that justify the input formula's structure instead of letting the SAT solver choose. For BV: no measurable effect." },
+  { opt: "static-learning=false", label: "No static learning", applies: () => true,
+    help: "Do not add the theory lemmas cvc5 learns from the input before solving. For BV: no measurable effect." },
+  { opt: "sat-solver=minisat", label: "MiniSat main SAT solver", applies: () => true,
+    help: "Use MiniSat instead of CaDiCaL for cvc5's main CDCL(T) loop. For BV: no effect alone (the bit-vector SAT solver stays CaDiCaL)." },
+];
+const OPTION_RE = /^[a-z][a-z0-9-]*(=[A-Za-z0-9._+-]+)?$/;
+const optionName = o => o.split("=")[0];
+
 const GENERIC_HINT = "Theory-independent: the same encoding runs over any element theory.";
 const DREAL_HINT = "Solved by dReal (delta-complete). A delta-SAT box is rounded to the exact roots and checked against every edge.";
 
@@ -43,6 +64,7 @@ const state = {
   asserts: [], totalAsserts: 0, limit: PAGE, rendered: 0, pendingRender: false,
   mode: store.get("mode") || "pretty", result: null, highlight: null,
   labels: store.get("labels") === "value" ? "value" : "node",
+  options: new Set(JSON.parse(store.get("options") || "[]")),
 };
 
 // ===========================================================================
@@ -77,6 +99,15 @@ async function init() {
   $("k").addEventListener("keydown", e => { if (e.key === "Enter") run(); });
   $("k-reset").addEventListener("click", () => { $("k").value = state.graph.k; updateKReset(); });
   $("timeout").addEventListener("change", () => store.set("timeout", $("timeout").value));
+  $("custom-options").value = store.get("customOptions") || "";
+  $("options-field").open = store.get("optionsOpen") === "1";
+  $("options-field").addEventListener("toggle", () => store.set("optionsOpen", $("options-field").open ? "1" : "0"));
+  renderOptionChips();  // again, now that the saved custom options are loaded
+  $("custom-options").addEventListener("input", () => {
+    store.set("customOptions", $("custom-options").value);
+    selectedOptions();
+    renderOptionChips();
+  });
   $("run").addEventListener("click", run);
   $("stop").addEventListener("click", stop);
   $("formula-filter").addEventListener("input", () => { state.limit = PAGE; rebuildFormulas(); });
@@ -191,6 +222,7 @@ function onSolverChange() {
   store.set("solver", $("solver").value);
   $("solver-hint").textContent = kind === "gen" ? GENERIC_HINT : kind === "dreal" ? DREAL_HINT : (HINTS[name] || "");
   $("element-field").hidden = kind !== "gen";
+  renderOptionChips();
   if (kind !== "gen") return;
   const defaultElement = state.solvers.defaults[name];
   const chosen = state.element[name] || defaultElement;
@@ -205,9 +237,70 @@ function onSolverChange() {
       state.element[name] = el;
       store.set("elements", JSON.stringify(state.element));
       box.querySelectorAll("button").forEach(x => x.classList.toggle("on", x === b));
+      renderOptionChips();
     });
     box.appendChild(b);
   }
+}
+
+// The option chips that apply to the current solver (none for dReal)
+function renderOptionChips() {
+  const solver = currentSolver();
+  const field = $("options-field"), box = $("option-chips");
+  field.hidden = solver.engine !== "cvc5";
+  box.innerHTML = "";
+  const customNames = new Set($("custom-options").value.split(/[,\s]+/).filter(Boolean).map(optionName));
+  for (const chip of OPTION_CHIPS.filter(c => c.applies(solver.theory))) {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.className = "chip toggle";
+    const overridden = customNames.has(optionName(chip.opt));
+    b.classList.toggle("on", state.options.has(chip.opt));
+    b.classList.toggle("overridden", overridden);
+    b.title = `${chip.help}\n--opt ${chip.opt}` + (overridden ? `\n(overridden by ${optionName(chip.opt)}= in the field below)` : "");
+    b.textContent = chip.label;
+    b.addEventListener("click", () => {
+      if (state.options.has(chip.opt)) state.options.delete(chip.opt);
+      else {
+        // options that set the same name exclude each other
+        for (const o of [...state.options]) if (optionName(o) === optionName(chip.opt)) state.options.delete(o);
+        state.options.add(chip.opt);
+      }
+      store.set("options", JSON.stringify([...state.options]));
+      renderOptionChips();
+    });
+    box.appendChild(b);
+  }
+  updateOptionsBadge();
+}
+
+// "N on" next to the collapsed title, so active options are visible without opening it
+function updateOptionsBadge() {
+  const options = selectedOptions();
+  const badge = $("options-active");
+  const n = options === null ? 0 : options.length;
+  badge.hidden = n === 0 && options !== null;
+  badge.textContent = options === null ? "check the options" : `${n} on`;
+  badge.title = options && n ? options.join(", ") : "";
+}
+
+// The cvc5 options to send: the applicable chips plus the custom field (null if that is malformed)
+function selectedOptions() {
+  const solver = currentSolver();
+  const error = $("option-error");
+  error.hidden = true;
+  if (solver.engine !== "cvc5") return [];
+  const chips = OPTION_CHIPS.filter(c => c.applies(solver.theory) && state.options.has(c.opt)).map(c => c.opt);
+  const custom = $("custom-options").value.split(/[,\s]+/).filter(Boolean);
+  const bad = custom.filter(o => !OPTION_RE.test(o));
+  if (bad.length) {
+    error.textContent = `Not an option: ${bad.join(", ")}. Use NAME=VALUE, e.g. bitblast=eager.`;
+    error.hidden = false;
+    return null;
+  }
+  // a custom NAME=VALUE overrides a chip for the same NAME
+  const customNames = new Set(custom.map(optionName));
+  return [...chips.filter(o => !customNames.has(optionName(o))), ...custom];
 }
 
 function currentSolver() {
@@ -227,8 +320,12 @@ function run() {
   const k = parseInt($("k").value, 10);
   if (!(k >= 1)) { $("k").focus(); showErrors(["Enter K, the number of colors (1 or more)."]); return; }
   const solver = currentSolver(), graph = state.graph;
+  const options = selectedOptions();
+  if (options === null) { $("options-field").open = true; $("custom-options").focus(); return; }
+  if (options.length) solver.label += ` [${options.join(", ")}]`;
   const params = new URLSearchParams({ graph: graph.path, solver: solver.theory, engine: solver.engine,
                                        k, timeout: $("timeout").value || 0 });
+  options.forEach(o => params.append("opt", o));
   clearResult();
   clearFormulas();
   state.running = true;

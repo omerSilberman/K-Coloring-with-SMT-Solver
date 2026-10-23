@@ -183,9 +183,15 @@ class Handler(BaseHTTPRequestHandler):
             return self.send_json({"error": "K must be an integer"}, 400)
         if not full or not re.fullmatch(r"[A-Z0-9-]+", theory) or k < 1:
             return self.send_json({"error": "bad request"}, 400)
+        # cvc5 options, NAME or NAME=VALUE (only for cvc5; dReal has its own solver)
+        options = [o for o in query.get("opt", []) if o]
+        if engine == "dreal":
+            options = []
+        if not all(re.fullmatch(r"[a-z][a-z0-9-]*(=[A-Za-z0-9._+-]+)?", o) for o in options):
+            return self.send_json({"error": "bad cvc5 option"}, 400)
 
         binary = [sys.executable, DREAL_SCRIPT] if engine == "dreal" else [CVC5_BIN]
-        cmd = binary + [theory, full, str(k), "--print-asserts", "--model"]
+        cmd = binary + [theory, full, str(k), "--print-asserts", "--model"] + [a for o in options for a in ("--opt", o)]
 
         self.send_response(200)
         self.send_header("Content-Type", "text/event-stream")

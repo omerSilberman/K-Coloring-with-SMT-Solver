@@ -259,6 +259,40 @@ So `UF-CARD` does not replace `BV`, but it complements it: it is fastest on a fa
 
 `homer.col` was left out: it contains a self-loop (`e 95 95`), so it has no coloring for any K, and every solver correctly answers UNSAT for the K = 13 stored in `optimal_k_values.json` (DSATUR ignores self-loops).
 
+### cvc5 options for `BV`
+
+`BV` is the fastest encoding overall, so the question is whether cvc5's own settings can make it faster. `--opt NAME=VALUE` passes any cvc5 option through. This cvc5 build has CaDiCaL as its only bit-vector SAT backend (no Kissat or CryptoMiniSat), and by default it uses CaDiCaL for the main CDCL(T) loop as well. The candidates:
+
+| Option | What it changes |
+|---|---|
+| `bitblast=eager` | Translate the whole formula to CNF up front and solve it with one SAT call, instead of bit-blasting lazily inside the SMT loop (default `lazy`) |
+| `bv-solver=bitblast-internal` | Bit-blast into the main SAT solver instead of a separate bit-vector SAT solver (default `bitblast`) |
+| `sat-solver=minisat` | MiniSat instead of CaDiCaL for the main CDCL(T) loop |
+| `simplification=none` | Skip non-clausal preprocessing (default `batch`) |
+| `decision=justification` | Justification-based decisions (default `internal`) |
+| `static-learning=false` | No static learning of theory lemmas from the input |
+
+Each configuration ran on the 34 instances where default `BV` takes at least 0.4 s or times out (from graphs with a proven χ, at K = χ and K = χ - 1), 30 s timeout, 8 runs in parallel, every SAT model checked. On the remaining instances every setting finishes in under 0.4 s.
+
+| Configuration | Solved (of 34) | Total time (timeouts as 30 s) | Median speed vs default |
+|---|---|---|---|
+| default | 26 | 330 s | 1.00x |
+| `bitblast=eager` | 26 | 339 s | 0.85x |
+| `bitblast=eager`, `simplification=none` | 26 | 339 s | 0.88x |
+| `bv-solver=bitblast-internal` | 23 | 462 s | 0.73x |
+| `bv-solver=bitblast-internal`, `sat-solver=minisat` | 23 | 462 s | 0.73x |
+| `decision=justification` | 26 | 329 s | 0.98x |
+| `static-learning=false` | 26 | 328 s | 0.99x |
+| `simplification=none` | 26 | 327 s | 1.02x |
+
+**None of the options makes `BV` meaningfully faster.** The default is already the right setup:
+
+- **Eager bit-blasting is about 15% slower**, almost everywhere. For these formulas lazy mode already does what eager mode promises: every assertion is a top-level bit-vector atom, so the bit-vector solver gets the whole problem at the first check and solves it with one CaDiCaL call. Eager mode only adds its own pipeline on top.
+- **The internal bit-blaster is the only option that changes results.** It is 1.3-1.5x faster on SAT instances with many colors: `fpsol2.i.2` and `fpsol2.i.3` (K = 30: 2.5 s vs 3.4 s), `inithx.i.1` (K = 54: 6.4 s vs 9.7 s) and `DSJR500.1` (K = 12: 0.9 s vs 1.2 s). But it is much slower almost everywhere else: 10-20x on `anna`, `huck` and `david` (UNSAT, K = 10), 34x on `ash608GPIA` (SAT), and it times out on three instances the default solves: `ash958GPIA` and `le450_15a` (SAT), and `DSJR500.1` (UNSAT, K = 11). With MiniSat as the main SAT solver it behaves the same, so the main SAT solver does not matter here.
+- **Preprocessing, the decision heuristic and static learning** are all within 2% of the default, i.e. noise. The formula has no structure for them to work on: a conjunction of bit-vector atoms with no Boolean connectives above them.
+
+No option solves any instance that the default times out on. To beat `BV`, the formula has to change, not cvc5's settings: the [`UF-CARD`](#uf-card-the-sorts-size-is-the-domain) results suggest that removing the color symmetry is where the real gains are.
+
 ### Theory-independent encodings: `<ENCODING>-<ELEM>`
 
 Some encodings get all their structure from a "container" theory (sets, arrays, a heap, or just equality for `OR`) and only need *some* sort with enough distinct elements in it. These are written once, and the element theory is a separate parameter: `<ENCODING>-<ELEM>` on the command line, e.g. `SET-MEM-BV`, `ARR-EXP-STR`, `SET-CLASSES-DT`. The bare name (`SET-MEM`, `ARR-EXP`, ...) uses the default element theory, the one the encoding was first written with, so it gives the same formula and logic as before.
@@ -539,6 +573,7 @@ No `LD_LIBRARY_PATH` is needed to run the binaries: cvc5 is linked statically, a
 |--------|--------|
 | `--model` | If SAT, print the coloring (`MODEL: node_1: ... node_2: ...`). Array encodings also print their index variables (`i_1_*` or `idx_*`). |
 | `--print-asserts` | Dump every asserted formula, in SMT-LIB-like syntax, before solving. |
+| `--opt NAME=VALUE` | Set a cvc5 option, e.g. `--opt bitblast=eager`. Repeatable; `--opt NAME` alone means `NAME=true`. Options are set before the encoding configures the solver, so options an encoding requires (such as `SEP`'s non-incremental mode) still win. See [cvc5 options for `BV`](#cvc5-options-for-bv). |
 | `--help`, `-h` | Show usage and the list of theories. |
 
 Options can appear anywhere on the command line. The program prints one of `SAT`, `UNSAT` or `UNKNOWN`.
@@ -591,6 +626,7 @@ e 1 3
 ```
 
 - **Graph**: every `.col` / `.clq` under `benchmarks/` (plus `test.col`), searchable, with its node and edge counts. K defaults to the value in `optimal_k_values.json`, with a link back to it if you change K.
+- **cvc5 options**: clickable chips under the solver for the options worth trying, shown only where they apply (eager bit-blasting only for the pure bit-vector encodings). Each chip's tooltip says what it did to `BV` in the benchmark. Any other option can be typed as `NAME=VALUE`; a typed option overrides a chip with the same name.
 - **Solver**: every theory that `smt_solver_cvc5 --help` lists, grouped by theory. The theory-independent encodings get an element-theory picker. The four trig encodings can also run with dReal (`smt_solver_dreal.py`).
 - **Formulas**: the assertions from `--print-asserts`, shown as math: `node₁ ∈ {0, 1, 2}`, `A₂,₁ = A₁,₁[i₁,₁ ↦ 0]`, `(E ⋈ C) ∩ C = ∅`, `c₁ ↦ E0 ∗ c₂ ↦ E0`, with `let` bindings inlined. The **SMT-LIB** toggle shows the raw text, and the filter searches it. Up to 5,000 formulas are sent to the page; the rest are only counted.
 - **While solving**: a spinner, a running timer and the phase (building the formula, solving). **Stop** kills the solver process. An optional time limit does the same automatically.
@@ -642,7 +678,7 @@ A `.conf` file is a Python list literal of solver entries. Comment out a line wi
 ```
 
 - `name`: column header in the results table
-- `bin_path`: `[binary, THEORY]`; the script appends `<graph> <K> [--model]`
+- `bin_path`: `[binary, THEORY]`; the script appends `<graph> <K> [--model]`. cvc5 options go in the list too: `["./build/smt_solver_cvc5", "BV", "--opt", "bv-solver=bitblast-internal"]`
 - `model_prefix`: label used when printing models
 
 Two names are handled specially: `OR-Tools` runs Google OR-Tools CP-SAT in-process, and `GC-CDCL` calls an external `gc` binary with `--bound K`.
