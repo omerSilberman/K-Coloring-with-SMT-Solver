@@ -170,6 +170,9 @@ const Pretty = (() => {
     }
 
     switch (head) {
+      case "_":  // indexed symbols: (_ fmf.card Color K) is |Color| ≤ K
+        if (args[0] === "fmf.card") return { html: `|${render(args[1]).html}| ${op("≤")} ${render(args[2]).html}`, prec: 5 };
+        return atom(span("kw", esc(args.flat(Infinity).join(" "))));
       case "as":
         if (args[0] === "set.empty") return atom(span("n", "∅"));
         return render(args[0]);

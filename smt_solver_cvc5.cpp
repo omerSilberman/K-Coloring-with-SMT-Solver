@@ -1132,6 +1132,32 @@ protected:
 };
 
 // ============================================================================
+// UNINTERPRETED SORT WITH A CARDINALITY CONSTRAINT
+// ============================================================================
+// Nodes are constants of an uninterpreted sort Color, edges are u != v, and the
+// only other assertion is (_ fmf.card Color K): Color has at most K elements.
+// There are no colors and no domain constraint: the sort's size is the domain.
+// cvc5's cardinality solver (Reynolds et al.) keeps the equivalence classes of Color
+// terms in "regions" of its disequality graph and must merge them down to at most K
+// classes without merging two disequal terms - which is K-coloring the graph. It
+// splits on merging two classes and reports a conflict when it finds a (K+1)-clique.
+// (Its other modes, --uf-ss=no-minimal/none, only work with quantifier model finding
+// and answer UNKNOWN here, so cvc5's default is used.)
+class UfCardColorer : public AbstractGraphColorer {
+public:
+    using AbstractGraphColorer::AbstractGraphColorer;
+protected:
+    void configure_theory() override { solver.setLogic("QF_UFC"); }  // C: cardinality constraints
+    void build_variables_and_bounds() override {
+        cvc5::Sort color_sort = tm.mkUninterpretedSort("Color");
+        for (int i = 1; i <= num_nodes; i++) {
+            node_vars[i] = tm.mkConst(color_sort, "node_" + to_string(i));
+        }
+        solver.assertFormula(tm.mkCardinalityConstraint(color_sort, K));
+    }
+};
+
+// ============================================================================
 // DISJUNCTION OVER K ELEMENTS (any element theory)
 // ============================================================================
 // x = e_1 or ... or e_K for K distinct elements. UF, STRING and LIST-DT are this
@@ -1791,7 +1817,7 @@ int main(int argc, char** argv) {
             cout << "\nAvailable Theories:" << endl;
             cout << "  LIA, IDL, INT-MOD, INT-POW2, BV, BV-ZERO, BV-AND, BV-MOD, BV-ONEHOT, FP," << endl;
             cout << "  NLRA, NLRA-SQRT, NLRA-ROOTS, NLRA-SIN, NLRA-COS, NLRA-SINCOS, NLRA-SINPI," << endl;
-            cout << "  FF-PRIME, FF-POLY, FF-ROOTS, FF-NULL, LIST-UF, LIST-DT, PEANO, UF," << endl;
+            cout << "  FF-PRIME, FF-POLY, FF-ROOTS, FF-NULL, LIST-UF, LIST-DT, PEANO, UF, UF-CARD," << endl;
             cout << "  STRING, STR-LEX, STR-INT, STR-REG, STR-SUB, ARR-MAP" << endl;
             cout << "\nTheory-independent encodings, as <ENCODING> or <ENCODING>-<ELEM>:" << endl;
             cout << "  OR, SET-CUBE, SET-MASK, SET-MEM, SET-CLASSES, REL-JOIN, ARR-EXP, ARR-INL, SEP" << endl;
@@ -1878,6 +1904,8 @@ int main(int argc, char** argv) {
             colorer = new ListDtColorer(K, produce_model, print_asserts);
         } else if (theory == "PEANO") {
             colorer = new PeanoColorer(K, produce_model, print_asserts);
+        } else if (theory == "UF-CARD") {
+            colorer = new UfCardColorer(K, produce_model, print_asserts);
         } else if (theory == "UF") {
             colorer = new UfColorer(K, produce_model, print_asserts);
         } else if (theory == "STRING") {

@@ -10,7 +10,7 @@ All encodings share the same skeleton:
 
 Nine encodings never look at what their elements are: they get their structure from sets, arrays, a heap or plain equality. They take the element theory as a suffix (`SET-MEM-BV`, `ARR-EXP-STR`, ...); see [Theory-independent encodings](#theory-independent-encodings-encoding-elem).
 
-A few encodings deliberately break this skeleton to try out other ideas. Some replace `!=` with a theory-specific edge constraint (`BV-ONEHOT`, `INT-MOD`, `BV-MOD`, `FF-NULL`, `SEP`). Some have no per-node variable at all (`SET-CLASSES`, `REL-JOIN`). They are described in [Encodings beyond the skeleton](#encodings-beyond-the-skeleton).
+A few encodings deliberately break this skeleton to try out other ideas. Some replace `!=` with a theory-specific edge constraint (`BV-ONEHOT`, `INT-MOD`, `BV-MOD`, `FF-NULL`, `SEP`). Some have no per-node variable at all (`SET-CLASSES`, `REL-JOIN`). `UF-CARD` has no domain constraint at all: one cardinality constraint on the sort replaces all of them (see [`UF-CARD`](#uf-card-the-sorts-size-is-the-domain)). They are described in [Encodings beyond the skeleton](#encodings-beyond-the-skeleton).
 
 The point is to compare how the solver copes with the *same* combinatorial problem when it is expressed through different theories. Several encodings (notably the array chains) follow Roberto Sebastiani, *"Colors Make Theories Hard"* (IJCAR 2016).
 
@@ -72,6 +72,7 @@ The **Name** is the first argument passed to the solver binaries.
 | `LIST-DT` | DT | `QF_DT` | Enumeration datatype `Color = C1 \| ... \| CK`; `x` equals one constructor. The same as `OR-DT` | ✓ |
 | `PEANO` | DT | `QF_DT` | Recursive datatype `Nat = Z \| S(pred: Nat)`; colors `Z, S(Z), ..., S^(K-1)(Z)`, enforced by one tester clause "x is not K successors deep". See [`PEANO`](#peano-unary-naturals) | |
 | `UF` | UF | `QF_UF` | Uninterpreted sort with K pairwise-distinct constants; `x` equals one of them. The same as `OR-UF` | ✓ |
+| `UF-CARD` | UF + cardinality | `QF_UFC` | Uninterpreted sort `Color` with **no** domain constraint per node; a single `(_ fmf.card Color K)` says the sort has at most K elements. Handled by cvc5's cardinality solver. See [`UF-CARD`](#uf-card-the-sorts-size-is-the-domain) | |
 | `STRING` | STRING | `QF_S` | String `x` equal to one of K distinct literals (`"A"`, `"B"`, ...). `OR-STR` up to the literals | ✓ |
 | `STR-LEX` | STRING | `QF_SLIA` | `len(x) = 1` and `"A" <= x <= chr('A'+K-1)` lexicographically. **K <= 50 only.** | ✓ |
 | `STR-INT` | STRING | `QF_SLIA` | String `x` with `1 <= str.to_int(x) <= K` and `x = str.from_int(str.to_int(x))` (canonical spelling, so `"02"` cannot pose as a second `"2"`) | |
@@ -186,6 +187,77 @@ x^K = 1
 **How the term is built.** `x^K` is built by repeated squaring (`x^2`, `x^4`, `x^8`, ... multiplied together according to the binary digits of K), so it takes about `2 log2 K` multiplications rather than K. For example `x^5 = x * (x^2)^2`. Compared to `FF-POLY`, both domain constraints are polynomials of degree K, but `x^K - 1` has only two terms, while the product `x(x-1)...(x-(K-1))` expands to up to K+1 terms. The trade-off is a larger field: p is the first prime `= 1 (mod K)`, which can be well above the smallest prime `>= K` that `FF-POLY` uses (e.g. K = 5 needs p = 11 here, but p = 5 for `FF-POLY`).
 
 The edge constraint is the usual `u != v`.
+
+### `UF-CARD`: the sort's size is the domain
+
+Every other encoding restricts each node to K colors with its own domain constraint. In `UF-CARD`, there are no colors and no domain constraints at all:
+
+```
+(declare-sort Color 0)               ; an uninterpreted sort
+(declare-const node_1 Color) ...     ; one constant per node
+(assert (not (= node_u node_v)))     ; one disequality per edge
+(assert (_ fmf.card Color K))        ; the sort has at most K elements
+```
+
+The last line is a **cardinality constraint**, a cvc5 extension (the `C` in the logic `QF_UFC`). The nodes' values are elements of `Color`, so "at most K elements in `Color`" is "at most K distinct colors". It is the same idea as `BV` when K is a power of 2, or `FF-PRIME` when K is prime, where the sort has exactly K values, but it works for every K.
+
+**How cvc5 solves it.** The constraint is handled by the *UF with cardinality* solver (Reynolds, Tinelli et al., built for finite model finding). It keeps the equivalence classes of `Color` terms and the disequalities between them as a graph, split into *regions* of strongly connected terms. To satisfy the constraint it must merge the classes down to at most K, never merging two classes that are disequal: that is K-coloring the disequality graph, which is our graph. It does this with two kinds of reasoning:
+
+- **Splitting**: pick two classes in a region that are not disequal and either merge them (`node_i = node_j`: same color) or keep them apart (`node_i != node_j`: a new edge). This is **Zykov's contraction/addition branching**, the classic exact algorithm for the chromatic number: merging contracts two nodes into one, keeping them apart adds an edge.
+- **Clique conflicts**: if K + 1 classes are pairwise disequal, no merge can help, and it reports a conflict right away: the clause "these K + 1 nodes cannot all be different". The cliques do not have to be in the original graph. They usually appear in the *contracted* graph after a few merges.
+
+Two things set this apart from every other encoding. First, **there is no color symmetry**: the colors are anonymous classes, so the search never revisits the K! relabelings of one coloring, which `BV`, `LIA` and `UF` all explore. Second, a clique conflict is found in one step, while a SAT solver must rediscover "K + 1 pairwise different nodes" as a pigeonhole argument, whose resolution proofs are exponentially long.
+
+cvc5 has other modes for this solver (`--uf-ss=no-minimal`, `none`), but they only work together with quantifier model finding and answer UNKNOWN here, so `UF-CARD` uses the default (`full`). Models print each node as an abstract element (`@Color_0`, `@Color_1`, ...).
+
+**Complete graphs.** `K_(K+1)` with K colors is the pigeonhole problem in its purest form:
+
+| K | `UF-CARD` | `BV` | `UF` |
+|---|---|---|---|
+| 8 | 0.12 s | 0.22 s | 0.51 s |
+| 9 | 0.12 s | 0.62 s | 2.51 s |
+| 10 | 0.12 s | 1.12 s | timeout (30 s) |
+| 11 | 0.12 s | 2.81 s | timeout |
+| 12 | 0.12 s | 11.03 s | timeout |
+
+`UF-CARD` is instant for every K, since the whole graph is a (K+1)-clique. `BV` doubles with every step.
+
+**DIMACS benchmarks.** Each graph with a proven chromatic number χ in `optimal_k_values.json` was run with K = χ (SAT) and K = χ - 1 (UNSAT), 30 s timeout, 8 runs in parallel, every SAT model checked. The run was stopped after 312 of 570 runs. The table counts the 30 SAT and 30 UNSAT instances that all five solvers completed:
+
+| | `UF-CARD` | `BV` | `BV-AND` | `LIA` | `UF` |
+|---|---|---|---|---|---|
+| UNSAT solved | 19 | **24** | **24** | 13 | 19 |
+| UNSAT, fastest | **10** | 2 | 5 | 1 | 7 |
+| SAT solved | 18 | **29** | **29** | 20 | 26 |
+| SAT, fastest | 2 | **16** | 11 | 0 | 0 |
+
+UNSAT instances, in seconds (T/O = timeout), with χ and the clique number ω (computed with networkx):
+
+| Graph | K | χ | ω | `UF-CARD` | `BV` | `BV-AND` | `LIA` | `UF` |
+|---|---|---|---|---|---|---|---|---|
+| `5-FullIns_4` | 8 | 9 | 7 | **17.56** | T/O | T/O | T/O | T/O |
+| `4-FullIns_4` | 7 | 8 | 6 | **9.77** | 14.37 | 14.25 | T/O | T/O |
+| `5-FullIns_3` | 7 | 8 | 7 | **0.07** | 0.77 | 0.76 | T/O | 0.47 |
+| `4-FullIns_3` | 6 | 7 | 6 | **0.05** | 0.23 | 0.22 | 22.62 | 0.12 |
+| `david` | 10 | 11 | 11 | **0.04** | 1.57 | 1.06 | T/O | T/O |
+| `huck` | 10 | 11 | 11 | **0.08** | 1.48 | 1.27 | T/O | T/O |
+| `anna` | 10 | 11 | 11 | **0.48** | 0.91 | 1.81 | T/O | T/O |
+| `jean` | 9 | 10 | 10 | 12.59 | 0.61 | **0.47** | T/O | 7.30 |
+| `games120` | 8 | 9 | 9 | T/O | **0.24** | **0.24** | T/O | 1.79 |
+| `DSJR500.1` | 11 | 12 | 12 | T/O | 11.90 | **11.22** | T/O | T/O |
+| `3-FullIns_4` | 6 | 7 | 5 | 2.04 | 2.05 | **1.81** | T/O | 3.00 |
+| `1-FullIns_5` | 5 | 6 | 3 | T/O | **2.82** | 2.99 | T/O | 8.32 |
+| `DSJC125.1` | 4 | 5 | 4 | 5.29 | 0.09 | 0.09 | 2.34 | **0.08** |
+| `4-Insertions_3` | 3 | 4 | 2 | T/O | 2.83 | 2.79 | 6.04 | **1.28** |
+| `ash958GPIA` | 3 | 4 | 3 | T/O | 1.21 | 1.16 | 3.41 | **0.63** |
+
+`UF-CARD` wins big, often by 10-40x, on the `FullIns` graphs with ω close to χ, and on `david`, `huck` and `anna`. It is the only solver that solves `5-FullIns_4`. A clique in the original graph is *not* what makes the difference, though. On the `FullIns` graphs, ω = χ - 2 or χ - 1, so most of them have no (K+1)-clique to find. The cliques appear after a few merges, and the symmetry-free Zykov search reaches them quickly. Conversely, `jean`, `games120` and `DSJR500.1` have ω = χ, yet `UF-CARD` is slow or times out: in these larger, sparser graphs it does not find the merges that expose the clique, while the SAT solver's learned clauses do. It also fails where the gap between ω and χ is large (`1-FullIns_5`: ω = 3, χ = 6; the triangle-free `Insertions` graphs: ω = 2).
+
+On SAT instances `UF-CARD` is slower than `BV` almost everywhere: building a model one merge decision at a time cannot compete with CaDiCaL's propagation.
+
+So `UF-CARD` does not replace `BV`, but it complements it: it is fastest on a family of hard UNSAT instances that `BV` struggles with. A portfolio running both would beat either alone. Breaking the color symmetry in `BV` (e.g. pre-coloring a clique) might recover part of the advantage there too.
+
+`homer.col` was left out: it contains a self-loop (`e 95 95`), so it has no coloring for any K, and every solver correctly answers UNSAT for the K = 13 stored in `optimal_k_values.json` (DSATUR ignores self-loops).
 
 ### Theory-independent encodings: `<ENCODING>-<ELEM>`
 

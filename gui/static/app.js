@@ -20,6 +20,7 @@ const HINTS = {
   "FF-PRIME": "Only accepts a prime K.",
   "STR-LEX": "Only supports K ≤ 50.",
   "IDL": "Colors are node − zero; the model shows the shifted values.",
+  "UF-CARD": "No colors at all: nodes of an uninterpreted sort, edges u ≠ v, and one constraint |Color| ≤ K for cvc5's cardinality solver.",
 };
 const GENERIC_HINT = "Theory-independent: the same encoding runs over any element theory.";
 const DREAL_HINT = "Solved by dReal (delta-complete). A delta-SAT box is rounded to the exact roots and checked against every edge.";
@@ -30,7 +31,7 @@ function family(name) {
   if (name === "FP") return "Floating point";
   if (/^NLRA/.test(name)) return "Real arithmetic";
   if (/^FF-/.test(name)) return "Finite fields";
-  if (/^(LIST-|PEANO$|UF$)/.test(name)) return "Datatypes & uninterpreted functions";
+  if (/^(LIST-|PEANO$|UF$|UF-)/.test(name)) return "Datatypes & uninterpreted functions";
   if (/^STR/.test(name)) return "Strings";
   if (/^ARR/.test(name)) return "Arrays";
   return "Other";
@@ -347,12 +348,12 @@ function clearResult() {
 // ===========================================================================
 // Coloring
 // ===========================================================================
-// The number a model value stands for (123, #b0101, #x1f, #f3m7), or null if it is not one
+// The number a model value stands for (123, #b0101, #x1f, #f3m7, @Color_3), or null if it is not one
 function numericKey(v) {
   if (/^-?\d+(\.\d+)?$/.test(v)) return Number(v);
   if (/^#b[01]+$/.test(v)) return Number(BigInt("0b" + v.slice(2)));
   if (/^#x[0-9a-fA-F]+$/.test(v)) return Number(BigInt("0x" + v.slice(2)));
-  const m = v.match(/^#f(\d+)m\d+$/);
+  const m = v.match(/^#f(\d+)m\d+$/) || v.match(/^\(as @\w+?_(\d+) \w+\)$/);  // #f3m7, (as @Color_3 Color)
   return m ? Number(m[1]) : null;
 }
 
