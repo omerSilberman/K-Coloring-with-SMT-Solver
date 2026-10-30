@@ -24,15 +24,25 @@ from urllib.parse import parse_qs, urlparse
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 STATIC = os.path.join(os.path.dirname(os.path.abspath(__file__)), "static")
-CVC5_BIN = os.path.join(ROOT, "build", "smt_solver_cvc5")
-DREAL_SCRIPT = os.path.join(ROOT, "smt_solver_dreal.py")
+sys.path.insert(0, os.path.join(ROOT, "common"))
+from graph import read_dimacs  # noqa: E402  (shared with dreal/)
 K_FILE = os.path.join(ROOT, "optimal_k_values.json")
 BENCHMARKS = os.path.join(ROOT, "benchmarks")
 
 MAX_ASSERTS_SENT = 5000      # the page gets at most this many assertions; the rest are only counted
 DRAW_MAX_NODES = 300         # graphs up to this size are sent to the page for drawing
 DRAW_MAX_EDGES = 6000
-DREAL_THEORIES = ["NLRA-SIN", "NLRA-COS", "NLRA-SINCOS", "NLRA-SINPI"]
+
+# The SMT solvers the page can pick. Each runs as `command THEORY graph K --print-asserts
+# --model`, and its encodings come from `command --help`. `options`: takes --opt NAME=VALUE.
+ENGINES = {
+    "cvc5": {"label": "cvc5", "command": [os.path.join(ROOT, "build", "smt_solver_cvc5")], "options": True,
+             "about": "cvc5, through its C++ API: every encoding"},
+    "z3": {"label": "Z3", "command": [os.path.join(ROOT, "build", "smt_solver_z3")], "options": True,
+           "about": "Z3, through its C++ API: the same encodings, minus the theories Z3 lacks (finite fields, separation logic, trigonometry)"},
+    "dreal": {"label": "dReal", "command": [sys.executable, os.path.join(ROOT, "dreal", "smt_solver_dreal.py")],
+              "options": False, "about": "dReal, a delta-complete solver for the trig encodings: finds the SAT models cvc5 cannot"},
+}
 
 CONTENT_TYPES = {".html": "text/html", ".css": "text/css", ".js": "application/javascript", ".svg": "image/svg+xml"}
 
@@ -41,17 +51,8 @@ CONTENT_TYPES = {".html": "text/html", ".css": "text/css", ".js": "application/j
 # Graphs and solvers
 # ---------------------------------------------------------------------------
 def read_graph(path):
-    """(num_nodes, edges) of a DIMACS file, read the same way as smt_solver_cvc5."""
-    num_nodes, edges = 0, []
-    with open(path) as f:
-        for line in f:
-            if line.startswith("p"):
-                parts = line.split()
-                num_nodes = int(parts[2])
-            elif line.startswith("e"):
-                parts = line.split()
-                edges.append((int(parts[1]), int(parts[2])))
-    return num_nodes, edges
+    """(num_nodes, edges) of a DIMACS file, read the same way as the solvers."""
+    return read_dimacs(path)
 
 
 def graph_header(path):
@@ -91,11 +92,8 @@ def list_graphs():
     return graphs
 
 
-def list_solvers():
-    """Theories from `smt_solver_cvc5 --help`, so the list stays in sync with the binary."""
-    if not os.path.exists(CVC5_BIN):
-        return {"error": f"Solver binary not found: {os.path.relpath(CVC5_BIN, ROOT)} (build it first)"}
-    text = subprocess.run([CVC5_BIN, "--help"], capture_output=True, text=True).stdout
+def parse_help(text):
+    """The encodings an engine's --help lists (common/registry.h writes that format)."""
     specific_part, _, generic_part = text.partition("Theory-independent")
     specific_part = specific_part.split("Available Theories:", 1)[-1]
     names = lambda s: re.findall(r"[A-Z][A-Z0-9]*(?:-[A-Z0-9]+)*", s)
@@ -103,10 +101,31 @@ def list_solvers():
     encodings = names(generic_lines[1]) if len(generic_lines) > 1 else []
     elements_line = next((l for l in generic_lines if "element theory:" in l), "")
     elements = names(elements_line.split(":", 1)[-1])
-    defaults = {e: ("UF" if e in ("OR", "SEP") else "INT") for e in encodings}
-    dreal = DREAL_THEORIES if os.path.exists(DREAL_SCRIPT) else []
-    return {"specific": names(specific_part), "generic": encodings, "elements": elements,
-            "defaults": defaults, "dreal": dreal}
+    # "(default UF for OR and SEP, INT otherwise; ...)"
+    defaults = {}
+    match = re.search(r"\(default (.*?);", generic_part)
+    for part in (match.group(1).split(", ") if match else []):
+        element, _, users = part.partition(" ")
+        if users == "otherwise":
+            defaults = {**{e: element for e in encodings}, **defaults}
+        else:
+            defaults.update({e: element for e in users.removeprefix("for ").split(" and ")})
+    return {"specific": names(specific_part), "generic": encodings, "elements": elements, "defaults": defaults}
+
+
+def list_engines():
+    """Each engine with its encodings, or why it is not available."""
+    engines = []
+    for key, engine in ENGINES.items():
+        entry = {"id": key, "label": engine["label"], "about": engine["about"], "options": engine["options"]}
+        program = engine["command"][-1]
+        if not os.path.exists(program):
+            entry["error"] = f"{os.path.relpath(program, ROOT)} not found (build it first)"
+        else:
+            text = subprocess.run(engine["command"] + ["--help"], capture_output=True, text=True).stdout
+            entry.update(parse_help(text))
+        engines.append(entry)
+    return engines
 
 
 def check_coloring(edges, colors):
@@ -135,7 +154,7 @@ class Handler(BaseHTTPRequestHandler):
         url = urlparse(self.path)
         query = parse_qs(url.query)
         if url.path == "/api/options":
-            return self.send_json({"graphs": list_graphs(), "solvers": list_solvers()})
+            return self.send_json({"graphs": list_graphs(), "engines": list_engines()})
         if url.path == "/api/graph":
             return self.serve_graph(query.get("path", [""])[0])
         if url.path == "/api/run":
@@ -175,22 +194,22 @@ class Handler(BaseHTTPRequestHandler):
     def run_solver(self, query):
         get = lambda key, default="": query.get(key, [default])[0]
         full = self.graph_path(get("graph"))
-        theory, engine = get("solver"), get("engine", "cvc5")
+        theory, engine_id = get("solver"), get("engine", "cvc5")
         try:
             k = int(get("k"))
             timeout = float(get("timeout") or 0)
         except ValueError:
             return self.send_json({"error": "K must be an integer"}, 400)
-        if not full or not re.fullmatch(r"[A-Z0-9-]+", theory) or k < 1:
+        engine = ENGINES.get(engine_id)
+        if not full or not engine or not re.fullmatch(r"[A-Z0-9-]+", theory) or k < 1:
             return self.send_json({"error": "bad request"}, 400)
-        # cvc5 options, NAME or NAME=VALUE (only for cvc5; dReal has its own solver)
-        options = [o for o in query.get("opt", []) if o]
-        if engine == "dreal":
-            options = []
-        if not all(re.fullmatch(r"[a-z][a-z0-9-]*(=[A-Za-z0-9._+-]+)?", o) for o in options):
-            return self.send_json({"error": "bad cvc5 option"}, 400)
+        # Solver options, NAME or NAME=VALUE: cvc5 uses names like bitblast, Z3 dotted ones
+        # like sat.euf. dReal takes none.
+        options = [o for o in query.get("opt", []) if o] if engine["options"] else []
+        if not all(re.fullmatch(r"[a-z][a-z0-9_.-]*(=[A-Za-z0-9._+-]+)?", o) for o in options):
+            return self.send_json({"error": "bad solver option"}, 400)
 
-        binary = [sys.executable, DREAL_SCRIPT] if engine == "dreal" else [CVC5_BIN]
+        binary = engine["command"]
         cmd = binary + [theory, full, str(k), "--print-asserts", "--model"] + [a for o in options for a in ("--opt", o)]
 
         self.send_response(200)

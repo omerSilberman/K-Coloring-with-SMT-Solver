@@ -1,5 +1,4 @@
-// A graph in DIMACS format. Nothing here depends on cvc5, so this file can move to a
-// shared folder once another solver backend needs it.
+// A graph in DIMACS format, shared by every engine.
 #pragma once
 
 #include <fstream>

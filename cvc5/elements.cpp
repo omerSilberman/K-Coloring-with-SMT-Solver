@@ -1,6 +1,6 @@
 // The element theories: what INT, REAL, BV, ... mean in <ENCODING>-<ELEM>.
 #include "elements.h"
-#include "util.h"
+#include "../common/util.h"
 
 namespace {
 

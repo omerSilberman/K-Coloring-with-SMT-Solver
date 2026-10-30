@@ -13,9 +13,9 @@ namespace {
 // interval is a continuum, but only the K floats inside it exist.
 // fp.leq is false on NaN and the bounds exclude +-0 and infinities, so fp.eq and
 // = agree on the domain (outside it, NaN != NaN under fp.eq and +0 = -0).
-class FpColorer : public AbstractGraphColorer {
+class FpColorer : public Cvc5Colorer {
 public:
-    using AbstractGraphColorer::AbstractGraphColorer;
+    using Cvc5Colorer::Cvc5Colorer;
 protected:
     void configure_theory() override { solver.setLogic("QF_FP"); }
     void build_variables_and_bounds() override {
@@ -47,6 +47,6 @@ protected:
 
 }  // namespace
 
-void register_fp(Registry& registry) {
+void register_fp(Cvc5Registry& registry) {
     registry.add("FP", make<FpColorer>());
 }

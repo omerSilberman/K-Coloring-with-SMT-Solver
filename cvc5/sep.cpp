@@ -57,6 +57,6 @@ protected:
 
 }  // namespace
 
-void register_sep(Registry& registry) {
+void register_sep(Cvc5Registry& registry) {
     registry.add_generic("SEP", "UF", make_generic<SepColorer>());
 }

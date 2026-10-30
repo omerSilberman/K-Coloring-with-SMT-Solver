@@ -7,9 +7,9 @@ namespace {
 // ============================================================================
 // LINEAR INTEGER ARITHMETIC (LIA)
 // ============================================================================
-class LiaColorer : public AbstractGraphColorer {
+class LiaColorer : public Cvc5Colorer {
 public:
-    using AbstractGraphColorer::AbstractGraphColorer;
+    using Cvc5Colorer::Cvc5Colorer;
 protected:
     void configure_theory() override { solver.setLogic("QF_LIA"); }
     void build_variables_and_bounds() override {
@@ -32,11 +32,11 @@ protected:
 // A plain bound like x >= 1 is not a difference, so it is written against
 // an extra "zero" variable: x - zero >= 1 and x - zero <= K.
 // IDL is shift-invariant, so the color of node i is node_i - zero.
-class IdlColorer : public AbstractGraphColorer {
+class IdlColorer : public Cvc5Colorer {
 private:
     cvc5::Term zero;
 public:
-    using AbstractGraphColorer::AbstractGraphColorer;
+    using Cvc5Colorer::Cvc5Colorer;
 protected:
     void configure_theory() override { solver.setLogic("QF_IDL"); }
     void build_variables_and_bounds() override {
@@ -67,9 +67,9 @@ protected:
 // ============================================================================
 // Each node is an unbounded integer x, and its color is x mod K. Edges compare
 // the residues, so the solver has to see past the infinitely many values of x.
-class IntModColorer : public AbstractGraphColorer {
+class IntModColorer : public Cvc5Colorer {
 public:
-    using AbstractGraphColorer::AbstractGraphColorer;
+    using Cvc5Colorer::Cvc5Colorer;
 protected:
     void configure_theory() override { solver.setLogic("QF_LIA"); }
     void build_variables_and_bounds() override {
@@ -97,11 +97,11 @@ protected:
 // ============================================================================
 // Each node is x = 2^e with 0 <= e <= K-1, so the colors are 1, 2, 4, ..., 2^(K-1):
 // the integer counterpart of BV-ONEHOT. int.pow2 is a cvc5 extension.
-class IntPow2Colorer : public AbstractGraphColorer {
+class IntPow2Colorer : public Cvc5Colorer {
 private:
     vector<cvc5::Term> exponents;
 public:
-    using AbstractGraphColorer::AbstractGraphColorer;
+    using Cvc5Colorer::Cvc5Colorer;
 protected:
     void configure_theory() override { solver.setLogic("ALL"); }
     void build_variables_and_bounds() override {
@@ -118,7 +118,7 @@ protected:
 
 }  // namespace
 
-void register_int(Registry& registry) {
+void register_int(Cvc5Registry& registry) {
     registry.add("LIA", make<LiaColorer>());
     registry.add("IDL", make<IdlColorer>());
     registry.add("INT-MOD", make<IntModColorer>());

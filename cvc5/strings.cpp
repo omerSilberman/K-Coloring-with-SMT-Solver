@@ -1,5 +1,6 @@
 // String encodings: STRING, STR-LEX, STR-INT, STR-REG, STR-SUB
 #include "colorer.h"
+#include "../common/strings.h"
 #include "registry.h"
 
 namespace {
@@ -7,21 +8,11 @@ namespace {
 // ============================================================================
 // THEORY OF STRINGS (Original OR-Disjunction)
 // ============================================================================
-class StringColorer : public AbstractGraphColorer {
+class StringColorer : public Cvc5Colorer {
 private:
     vector<cvc5::Term> color_constants;
-    string int_to_alpha(int n) {
-        string chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
-        string result = "";
-        while (n > 0) {
-            n--;
-            result = chars[n % 52] + result;
-            n /= 52;
-        }
-        return result;
-    }
 public:
-    using AbstractGraphColorer::AbstractGraphColorer;
+    using Cvc5Colorer::Cvc5Colorer;
 protected:
     void configure_theory() override { solver.setLogic("QF_S"); }
     void build_variables_and_bounds() override {
@@ -52,9 +43,9 @@ protected:
 // ============================================================================
 // THEORY OF STRINGS (Lexicographical Boundaries Cube)
 // ============================================================================
-class StringLexColorer : public AbstractGraphColorer {
+class StringLexColorer : public Cvc5Colorer {
 public:
-    using AbstractGraphColorer::AbstractGraphColorer;
+    using Cvc5Colorer::Cvc5Colorer;
 protected:
     void configure_theory() override { solver.setLogic("QF_SLIA"); }
     void build_variables_and_bounds() override {
@@ -84,9 +75,9 @@ protected:
 // ============================================================================
 // THEORY OF STRINGS (String-To-Int Projection Cube)
 // ============================================================================
-class StringIntColorer : public AbstractGraphColorer {
+class StringIntColorer : public Cvc5Colorer {
 public:
-    using AbstractGraphColorer::AbstractGraphColorer;
+    using Cvc5Colorer::Cvc5Colorer;
 protected:
     void configure_theory() override { solver.setLogic("QF_SLIA"); }
     void build_variables_and_bounds() override {
@@ -115,20 +106,9 @@ protected:
 // ============================================================================
 // THEORY OF STRINGS (Native Regex Set Cube)
 // ============================================================================
-class StringRegexColorer : public AbstractGraphColorer {
-private:
-    string int_to_alpha(int n) {
-        string chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
-        string result = "";
-        while (n > 0) {
-            n--;
-            result = chars[n % 52] + result;
-            n /= 52;
-        }
-        return result;
-    }
+class StringRegexColorer : public Cvc5Colorer {
 public:
-    using AbstractGraphColorer::AbstractGraphColorer;
+    using Cvc5Colorer::Cvc5Colorer;
 protected:
     void configure_theory() override { solver.setLogic("QF_S"); }
     void build_variables_and_bounds() override {
@@ -163,40 +143,15 @@ protected:
 // ============================================================================
 // THEORY OF STRINGS (Substrings of a word with exactly K distinct substrings)
 // ============================================================================
-#ifndef SUBSTRING_TABLE_PATH
-#define SUBSTRING_TABLE_PATH "substring_strings.txt"
-#endif
-
-class StringSubstringColorer : public AbstractGraphColorer {
+class StringSubstringColorer : public Cvc5Colorer {
 private:
     string word;
-
-    // Looks K up in the table written by gen_substring_strings.py ("K string" per line).
-    // Outside the table, 'a' repeated K-1 times has exactly K distinct substrings
-    // ("", "a", ..., "a"*(K-1)).
-    string find_word() {
-        ifstream table(SUBSTRING_TABLE_PATH);
-        if (!table.is_open()) {
-            cerr << "Warning: could not open " << SUBSTRING_TABLE_PATH
-                 << ", using the fallback string" << endl;
-        }
-        string line;
-        while (getline(table, line)) {
-            if (line.empty() || line[0] == '#') continue;
-            stringstream ss(line);
-            int k;
-            string w; // stays empty for K = 1, whose only substring is ""
-            ss >> k >> w;
-            if (k == K) return w;
-        }
-        return string(K - 1, 'a');
-    }
 public:
-    using AbstractGraphColorer::AbstractGraphColorer;
+    using Cvc5Colorer::Cvc5Colorer;
 protected:
     void configure_theory() override { solver.setLogic("QF_S"); }
     void build_variables_and_bounds() override {
-        word = find_word();
+        word = substring_word(K);
         cvc5::Sort str_sort = tm.getStringSort();
         cvc5::Term word_term = tm.mkString(word);
 
@@ -207,14 +162,14 @@ protected:
         }
     }
     void print_model() override {
-        AbstractGraphColorer::print_model();
+        Cvc5Colorer::print_model();
         cout << "word: \"" << word << "\"";
     }
 };
 
 }  // namespace
 
-void register_strings(Registry& registry) {
+void register_strings(Cvc5Registry& registry) {
     registry.add("STRING", make<StringColorer>());
     registry.add("STR-LEX", make<StringLexColorer>());
     registry.add("STR-INT", make<StringIntColorer>());

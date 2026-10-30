@@ -14,13 +14,13 @@ namespace {
 // Without AMO a node may get several colors, but every one of them differs from all
 // colors of its neighbours, so any one gives a valid coloring (the model takes the
 // smallest). This is what BV-ONEHOT becomes after bit-blasting, minus the arithmetic.
-class BoolDirectColorer : public AbstractGraphColorer {
+class BoolDirectColorer : public Cvc5Colorer {
 private:
     bool at_most_one;
     vector<vector<cvc5::Term>> has_color;  // has_color[i][j-1] = c_i_j
 public:
     BoolDirectColorer(int k, bool model, bool print, bool at_most_one)
-        : AbstractGraphColorer(k, model, print), at_most_one(at_most_one) {}
+        : Cvc5Colorer(k, model, print), at_most_one(at_most_one) {}
 protected:
     void configure_theory() override { solver.setLogic("QF_SAT"); }
     void build_variables_and_bounds() override {
@@ -62,7 +62,7 @@ protected:
 
 }  // namespace
 
-void register_bool(Registry& registry) {
+void register_bool(Cvc5Registry& registry) {
     registry.add("BOOL-DIRECT", make<BoolDirectColorer>(false));
     registry.add("BOOL-DIRECT-AMO", make<BoolDirectColorer>(true));
 }

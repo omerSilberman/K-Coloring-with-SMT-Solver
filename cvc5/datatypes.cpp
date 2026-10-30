@@ -7,11 +7,11 @@ namespace {
 // ============================================================================
 // TRUE THEORY OF DATATYPES
 // ============================================================================
-class ListDtColorer : public AbstractGraphColorer {
+class ListDtColorer : public Cvc5Colorer {
 private:
     vector<cvc5::Term> color_constants;
 public:
-    using AbstractGraphColorer::AbstractGraphColorer;
+    using Cvc5Colorer::Cvc5Colorer;
 protected:
     void configure_theory() override { solver.setLogic("QF_DT"); }
     void build_variables_and_bounds() override {
@@ -48,9 +48,9 @@ protected:
 //   not (is-S(x) and is-S(pred x) and ... and is-S(pred^(K-1) x))
 // Once some pred^j x is Z, the later pred applications are unconstrained, but the
 // conjunction is already false at j, so the clause holds exactly for depth < K.
-class PeanoColorer : public AbstractGraphColorer {
+class PeanoColorer : public Cvc5Colorer {
 public:
-    using AbstractGraphColorer::AbstractGraphColorer;
+    using Cvc5Colorer::Cvc5Colorer;
 protected:
     void configure_theory() override { solver.setLogic("QF_DT"); }
     void build_variables_and_bounds() override {
@@ -80,7 +80,7 @@ protected:
 
 }  // namespace
 
-void register_datatypes(Registry& registry) {
+void register_datatypes(Cvc5Registry& registry) {
     registry.add("LIST-DT", make<ListDtColorer>());
     registry.add("PEANO", make<PeanoColorer>());
 }

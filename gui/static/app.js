@@ -12,48 +12,70 @@ const PALETTE = ["#4E79A7", "#F28E2B", "#E15759", "#59A14F", "#EDC948", "#B07AA1
                  "#9C755F", "#86BCB6", "#D37295", "#8CD17D", "#F1CE63", "#A0CBE8", "#FFBE7D", "#BAB0AC"];
 const colorFor = i => (i < PALETTE.length ? PALETTE[i] : `hsl(${(i * 137.508) % 360} 60% 55%)`);
 
+// Encoding hints, per solver (HINTS.any applies to every solver unless overridden)
 const HINTS = {
-  "NLRA-SIN": "cvc5 proves UNSAT here but cannot return SAT models (the roots are irrational). Try the dReal version.",
-  "NLRA-COS": "cvc5 proves UNSAT here but cannot return SAT models (the roots are irrational). Try the dReal version.",
-  "NLRA-SINCOS": "cvc5 proves UNSAT here but cannot return SAT models (the roots are irrational). Try the dReal version.",
-  "NLRA-SINPI": "Usually times out with cvc5 (π·x is nonlinear). Try the dReal version.",
-  "FF-PRIME": "Only accepts a prime K.",
-  "STR-LEX": "Only supports K ≤ 50.",
-  "IDL": "Colors are node − zero; the model shows the shifted values.",
-  "BV-ORDER": "Order (thermometer) encoding: width K−1, color c = the lowest c bits set (000, 001, 011, 111). Domain: x & (x + 1) = 0.",
-  "BV-ORDER-SHIFT": "The same order encoding with a purely bitwise domain: (x ≫ 1) & ~x = 0, i.e. no 1 above a 0.",
-  "BOOL-DIRECT": "Plain SAT: Booleans c(i, j) = \"node i has color j\", at least one color per node, and ¬c(u, j) ∨ ¬c(v, j) per edge and color. No theory at all.",
-  "BOOL-DIRECT-AMO": "BOOL-DIRECT plus at-most-one clauses, so every node gets exactly one color.",
-  "UF-CARD": "No colors at all: nodes of an uninterpreted sort, edges u ≠ v, and one constraint |Color| ≤ K for cvc5's cardinality solver.",
+  any: {
+    "FF-PRIME": "Only accepts a prime K.",
+    "STR-LEX": "Only supports K ≤ 50.",
+    "IDL": "Colors are node − zero; the model shows the shifted values.",
+    "BV-ORDER": "Order (thermometer) encoding: width K−1, color c = the lowest c bits set (000, 001, 011, 111). Domain: x & (x + 1) = 0.",
+    "BV-ORDER-SHIFT": "The same order encoding with a purely bitwise domain: (x ≫ 1) & ~x = 0, i.e. no 1 above a 0.",
+    "BOOL-DIRECT": "Plain SAT: Booleans c(i, j) = \"node i has color j\", at least one color per node, and ¬c(u, j) ∨ ¬c(v, j) per edge and color. No theory at all.",
+    "BOOL-DIRECT-AMO": "BOOL-DIRECT plus at-most-one clauses, so every node gets exactly one color.",
+  },
+  cvc5: {
+    "NLRA-SIN": "cvc5 proves UNSAT here but cannot return SAT models (the roots are irrational). Pick dReal as the solver to get them.",
+    "NLRA-COS": "cvc5 proves UNSAT here but cannot return SAT models (the roots are irrational). Pick dReal as the solver to get them.",
+    "NLRA-SINCOS": "cvc5 proves UNSAT here but cannot return SAT models (the roots are irrational). Pick dReal as the solver to get them.",
+    "NLRA-SINPI": "Usually times out with cvc5 (π·x is nonlinear). Pick dReal as the solver.",
+    "UF-CARD": "No colors at all: nodes of an uninterpreted sort, edges u ≠ v, and one constraint |Color| ≤ K for cvc5's cardinality solver.",
+  },
+  z3: {
+    "UF-CARD": "Z3 has no cardinality constraint, so |Color| ≤ K is a quantifier: ∀x. x = d₁ ∨ … ∨ x = d_K, solved by model-based quantifier instantiation.",
+    "INT-POW2": "Z3 has no int.pow2; the colors are 2^e with Z3's general (nonlinear) power operator.",
+    "BOOL-DIRECT": "Plain SAT in Z3's finite-domain logic QF_FD: c(i, j) = \"node i has color j\", one clause per node, ¬c(u, j) ∨ ¬c(v, j) per edge and color.",
+  },
+  dreal: {
+    any: "Solved by dReal (delta-complete). A delta-SAT box is rounded to the exact roots and checked against every edge.",
+  },
 };
-// Curated cvc5 options, offered when they apply to the solver's theory. The help text gives
-// what each one did to BV in the benchmark (README, "cvc5 options for BV").
+const GENERIC_HINT = "Theory-independent: the same encoding runs over any element theory.";
+const GENERIC_HINTS = {
+  z3: { "REL-JOIN": "Z3 has no relations: they are sets of tuples, and join/product are written as lambdas over the finite set of nodes and colors." },
+};
+
+// Curated solver options, offered when they apply to the encoding. The help text gives
+// what each one did in the benchmarks (README, "cvc5 options for BV").
 const PURE_BV = t => /^BV(-|$)/.test(t);  // the QF_BV encodings; eager bit-blasting needs pure QF_BV
 const HAS_BV = t => PURE_BV(t) || t === "FP" || /-BV$/.test(t);
-const OPTION_CHIPS = [
-  { opt: "bitblast=eager", label: "Eager bit-blasting", applies: PURE_BV,
-    help: "Translate the whole formula to CNF up front and hand it to the SAT solver in one go, instead of bit-blasting lazily inside the SMT loop. For BV: about 15% slower (lazy mode already sends everything to CaDiCaL at once)." },
-  { opt: "bv-solver=bitblast-internal", label: "Internal bit-blaster", applies: HAS_BV,
-    help: "Bit-blast into cvc5's main SAT solver instead of a separate bit-vector SAT solver. For BV: 1.3-1.5x faster on SAT instances with many colors (K = 30-54), much slower on most others." },
-  { opt: "simplification=none", label: "No preprocessing", applies: () => true,
-    help: "Skip cvc5's non-clausal simplification before solving. For BV: no measurable effect." },
-  { opt: "decision=justification", label: "Justification decisions", applies: () => true,
-    help: "Decide on literals that justify the input formula's structure instead of letting the SAT solver choose. For BV: no measurable effect." },
-  { opt: "static-learning=false", label: "No static learning", applies: () => true,
-    help: "Do not add the theory lemmas cvc5 learns from the input before solving. For BV: no measurable effect." },
-  { opt: "sat-solver=minisat", label: "MiniSat main SAT solver", applies: () => true,
-    help: "Use MiniSat instead of CaDiCaL for cvc5's main CDCL(T) loop. For BV: no effect alone (the bit-vector SAT solver stays CaDiCaL)." },
-];
-const OPTION_RE = /^[a-z][a-z0-9-]*(=[A-Za-z0-9._+-]+)?$/;
+const OPTION_CHIPS = {
+  cvc5: [
+    { opt: "bitblast=eager", label: "Eager bit-blasting", applies: PURE_BV,
+      help: "Translate the whole formula to CNF up front and hand it to the SAT solver in one go, instead of bit-blasting lazily inside the SMT loop. For BV: about 15% slower (lazy mode already sends everything to CaDiCaL at once)." },
+    { opt: "bv-solver=bitblast-internal", label: "Internal bit-blaster", applies: HAS_BV,
+      help: "Bit-blast into cvc5's main SAT solver instead of a separate bit-vector SAT solver. For BV: 1.3-1.5x faster on SAT instances with many colors (K = 30-54), much slower on most others." },
+    { opt: "simplification=none", label: "No preprocessing", applies: () => true,
+      help: "Skip cvc5's non-clausal simplification before solving. For BV: no measurable effect." },
+    { opt: "decision=justification", label: "Justification decisions", applies: () => true,
+      help: "Decide on literals that justify the input formula's structure instead of letting the SAT solver choose. For BV: no measurable effect." },
+    { opt: "static-learning=false", label: "No static learning", applies: () => true,
+      help: "Do not add the theory lemmas cvc5 learns from the input before solving. For BV: no measurable effect." },
+    { opt: "sat-solver=minisat", label: "MiniSat main SAT solver", applies: () => true,
+      help: "Use MiniSat instead of CaDiCaL for cvc5's main CDCL(T) loop. For BV: no effect alone (the bit-vector SAT solver stays CaDiCaL)." },
+  ],
+  z3: [
+    { opt: "sat.euf=true", label: "New SAT core (sat.euf)", applies: t => !/^STR|-STR$/.test(t),
+      help: "Z3's newer SAT-based core for equality and uninterpreted functions. SET-CLASSES-DT: solves the triangle in 0.1 s where the default core times out. Does not support strings." },
+  ],
+};
+const OPTION_RE = /^[a-z][a-z0-9_.-]*(=[A-Za-z0-9._+-]+)?$/;
 const optionName = o => o.split("=")[0];
-
-const GENERIC_HINT = "Theory-independent: the same encoding runs over any element theory.";
-const DREAL_HINT = "Solved by dReal (delta-complete). A delta-SAT box is rounded to the exact roots and checked against every edge.";
 
 function family(name) {
   if (/^(LIA|IDL|INT-)/.test(name)) return "Integer arithmetic";
   if (/^BV/.test(name)) return "Bit-vectors";
   if (name === "FP") return "Floating point";
+  if (/^NLRA-SIN|^NLRA-COS/.test(name)) return "Real arithmetic: trigonometry";
   if (/^NLRA/.test(name)) return "Real arithmetic";
   if (/^FF-/.test(name)) return "Finite fields";
   if (/^(LIST-|PEANO$|UF$|UF-)/.test(name)) return "Datatypes & uninterpreted functions";
@@ -64,7 +86,7 @@ function family(name) {
 }
 
 const state = {
-  graphs: [], solvers: null, graph: null, graphData: null,
+  graphs: [], engines: [], engineId: null, graph: null, graphData: null,
   element: {}, es: null, running: false, startTime: 0, timerId: 0,
   asserts: [], totalAsserts: 0, limit: PAGE, rendered: 0, pendingRender: false,
   mode: store.get("mode") || "pretty", result: null, highlight: null,
@@ -84,11 +106,10 @@ async function init() {
     return;
   }
   state.graphs = options.graphs;
-  state.solvers = options.solvers;
+  state.engines = options.engines;
   try { state.element = JSON.parse(store.get("elements") || "{}"); } catch (e) { state.element = {}; }
 
-  if (state.solvers.error) showErrors([state.solvers.error]);
-  buildSolverList();
+  buildEngineList();
   renderGraphList();
 
   const saved = store.get("graph");
@@ -99,6 +120,7 @@ async function init() {
 
   $("graph-filter").addEventListener("input", renderGraphList);
   $("graph").addEventListener("change", e => selectGraph(e.target.value));
+  $("engine").addEventListener("change", onEngineChange);
   $("solver").addEventListener("change", onSolverChange);
   $("k").addEventListener("input", updateKReset);
   $("k").addEventListener("keydown", e => { if (e.key === "Enter") run(); });
@@ -198,12 +220,47 @@ function updateKReset() {
   if (differs) button.textContent = `Reset to the optimal K = ${g.k}`;
 }
 
-function buildSolverList() {
-  const select = $("solver"), s = state.solvers;
-  if (!s || s.error) return;
+// The SMT solver (cvc5, Z3, dReal): its encodings come from its own --help
+const engine = () => state.engines.find(e => e.id === state.engineId);
+
+function buildEngineList() {
+  const select = $("engine");
+  select.innerHTML = "";
+  for (const e of state.engines) {
+    const o = document.createElement("option");
+    o.value = e.id;
+    o.textContent = e.error ? `${e.label} (not available)` : e.label;
+    o.disabled = !!e.error;
+    o.title = e.error || e.about;
+    select.appendChild(o);
+  }
+  const usable = state.engines.filter(e => !e.error);
+  if (!usable.length) {
+    showErrors(state.engines.map(e => `${e.label}: ${e.error}`));
+    return;
+  }
+  const saved = store.get("engine");
+  state.engineId = usable.some(e => e.id === saved) ? saved : usable[0].id;
+  select.value = state.engineId;
+  buildSolverList();
+}
+
+function onEngineChange() {
+  const previous = $("solver").value;
+  state.engineId = $("engine").value;
+  store.set("engine", state.engineId);
+  buildSolverList(previous);
+}
+
+// keep: an encoding to keep selected if this solver has it too (e.g. BV in cvc5 -> BV in Z3)
+function buildSolverList(keep = null) {
+  const select = $("solver"), e = engine();
+  select.innerHTML = "";
+  $("engine-hint").textContent = e.about;
   const groups = {};
-  for (const name of s.specific) (groups[family(name)] ||= []).push(name);
+  for (const name of e.specific) (groups[family(name)] ||= []).push(name);
   const add = (label, entries) => {
+    if (!entries.length) return;
     const group = document.createElement("optgroup");
     group.label = label;
     for (const [value, text] of entries) {
@@ -213,27 +270,29 @@ function buildSolverList() {
     }
     select.appendChild(group);
   };
-  for (const [label, names] of Object.entries(groups)) add(label, names.map(n => [`cvc5:${n}`, n]));
-  add("Theory-independent (any elements)", s.generic.map(n => [`gen:${n}`, `${n}-‹elem›`]));
-  if (s.dreal.length) add("dReal (delta-complete)", s.dreal.map(n => [`dreal:${n}`, `${n} · dReal`]));
-  const saved = store.get("solver");
-  if (saved && [...select.options].some(o => o.value === saved)) select.value = saved;
-  else select.value = "cvc5:LIA";
+  for (const [label, names] of Object.entries(groups)) add(label, names.map(n => [`spec:${n}`, n]));
+  add("Theory-independent (any elements)", e.generic.map(n => [`gen:${n}`, `${n}-‹elem›`]));
+  const has = v => v && [...select.options].some(o => o.value === v);
+  const saved = store.get(`solver:${e.id}`);
+  select.value = has(keep) ? keep : has(saved) ? saved : select.options[0].value;
   onSolverChange();
 }
 
 function onSolverChange() {
   const [kind, name] = $("solver").value.split(":");
-  store.set("solver", $("solver").value);
-  $("solver-hint").textContent = kind === "gen" ? GENERIC_HINT : kind === "dreal" ? DREAL_HINT : (HINTS[name] || "");
+  const e = engine();
+  store.set(`solver:${e.id}`, $("solver").value);
+  const hints = HINTS[e.id] || {};
+  $("solver-hint").textContent = kind === "gen" ? (GENERIC_HINTS[e.id]?.[name] || GENERIC_HINT)
+    : (hints[name] || hints.any || HINTS.any[name] || "");
   $("element-field").hidden = kind !== "gen";
   renderOptionChips();
   if (kind !== "gen") return;
-  const defaultElement = state.solvers.defaults[name];
-  const chosen = state.element[name] || defaultElement;
+  const defaultElement = e.defaults[name];
+  const chosen = currentElement(name);
   const box = $("elements");
   box.innerHTML = "";
-  for (const el of state.solvers.elements) {
+  for (const el of e.elements) {
     const b = document.createElement("button");
     b.type = "button";
     b.innerHTML = esc(el) + (el === defaultElement ? `<span class="def">default</span>` : "");
@@ -248,14 +307,22 @@ function onSolverChange() {
   }
 }
 
-// The option chips that apply to the current solver (none for dReal)
+// The element theory picked for a generic encoding, if this solver has it (Z3 has no FF)
+function currentElement(name) {
+  const e = engine(), picked = state.element[name];
+  return e.elements.includes(picked) ? picked : e.defaults[name];
+}
+
+// The option chips that apply to the current solver and encoding (none for dReal)
 function renderOptionChips() {
-  const solver = currentSolver();
+  const solver = currentSolver(), e = engine();
   const field = $("options-field"), box = $("option-chips");
-  field.hidden = solver.engine !== "cvc5";
+  field.hidden = !e.options;
+  $("options-title").textContent = `${e.label} options`;
+  $("custom-options").placeholder = e.id === "z3" ? "More options: NAME=VALUE, e.g. smt.random_seed=7" : "More options: NAME=VALUE, e.g. bitblast=eager";
   box.innerHTML = "";
   const customNames = new Set($("custom-options").value.split(/[,\s]+/).filter(Boolean).map(optionName));
-  for (const chip of OPTION_CHIPS.filter(c => c.applies(solver.theory))) {
+  for (const chip of (OPTION_CHIPS[e.id] || []).filter(c => c.applies(solver.theory))) {
     const b = document.createElement("button");
     b.type = "button";
     b.className = "chip toggle";
@@ -289,17 +356,17 @@ function updateOptionsBadge() {
   badge.title = options && n ? options.join(", ") : "";
 }
 
-// The cvc5 options to send: the applicable chips plus the custom field (null if that is malformed)
+// The solver options to send: the applicable chips plus the custom field (null if that is malformed)
 function selectedOptions() {
-  const solver = currentSolver();
+  const solver = currentSolver(), e = engine();
   const error = $("option-error");
   error.hidden = true;
-  if (solver.engine !== "cvc5") return [];
-  const chips = OPTION_CHIPS.filter(c => c.applies(solver.theory) && state.options.has(c.opt)).map(c => c.opt);
+  if (!e.options) return [];
+  const chips = (OPTION_CHIPS[e.id] || []).filter(c => c.applies(solver.theory) && state.options.has(c.opt)).map(c => c.opt);
   const custom = $("custom-options").value.split(/[,\s]+/).filter(Boolean);
   const bad = custom.filter(o => !OPTION_RE.test(o));
   if (bad.length) {
-    error.textContent = `Not an option: ${bad.join(", ")}. Use NAME=VALUE, e.g. bitblast=eager.`;
+    error.textContent = `Not an option: ${bad.join(", ")}. Use NAME=VALUE, e.g. ${e.id === "z3" ? "sat.euf=true" : "bitblast=eager"}.`;
     error.hidden = false;
     return null;
   }
@@ -308,13 +375,12 @@ function selectedOptions() {
   return [...chips.filter(o => !customNames.has(optionName(o))), ...custom];
 }
 
+// The run's solver (engine), encoding name (theory) and how to show it (label)
 function currentSolver() {
   const [kind, name] = $("solver").value.split(":");
-  if (kind === "gen") {
-    const el = state.element[name] || state.solvers.defaults[name];
-    return { engine: "cvc5", theory: `${name}-${el}`, label: `${name}-${el}` };
-  }
-  return { engine: kind === "dreal" ? "dreal" : "cvc5", theory: name, label: kind === "dreal" ? `${name} (dReal)` : name };
+  const e = engine();
+  const theory = kind === "gen" ? `${name}-${currentElement(name)}` : name;
+  return { engine: e.id, theory, label: `${theory} · ${e.label}` };
 }
 
 // ===========================================================================
@@ -442,7 +508,7 @@ function clearResult() {
   if (!state.running) {
     $("timer").hidden = true;
     $("command").hidden = true;
-    setStatus("idle", "Ready", "Pick a graph, a solver and K, then press <b>Run solver</b>.");
+    setStatus("idle", "Ready", "Pick a graph, a solver, an encoding and K, then press <b>Run solver</b>.");
   }
   drawGraph();
 }
@@ -450,12 +516,12 @@ function clearResult() {
 // ===========================================================================
 // Coloring
 // ===========================================================================
-// The number a model value stands for (123, #b0101, #x1f, #f3m7, @Color_3), or null if it is not one
+// The number a model value stands for (123, #b0101, #x1f, #f3m7, @Color_3, Color!val!3), or null if it is not one
 function numericKey(v) {
   if (/^-?\d+(\.\d+)?$/.test(v)) return Number(v);
   if (/^#b[01]+$/.test(v)) return Number(BigInt("0b" + v.slice(2)));
   if (/^#x[0-9a-fA-F]+$/.test(v)) return Number(BigInt("0x" + v.slice(2)));
-  const m = v.match(/^#f(\d+)m\d+$/) || v.match(/^\(as @\w+?_(\d+) \w+\)$/);  // #f3m7, (as @Color_3 Color)
+  const m = v.match(/^#f(\d+)m\d+$/) || v.match(/^\(as @\w+?_(\d+) \w+\)$/) || v.match(/^\w+!val!(\d+)$/);  // #f3m7, (as @Color_3 Color), Color!val!3
   return m ? Number(m[1]) : null;
 }
 

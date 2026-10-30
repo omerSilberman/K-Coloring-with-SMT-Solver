@@ -9,9 +9,9 @@ namespace {
 // ============================================================================
 // Colors 1..K: 1 <=u x <=u K, at the smallest width that holds K.
 // When K = 2^w (K >= 2) the sort has exactly K values, so width w and no bounds.
-class BvColorer : public AbstractGraphColorer {
+class BvColorer : public Cvc5Colorer {
 public:
-    using AbstractGraphColorer::AbstractGraphColorer;
+    using Cvc5Colorer::Cvc5Colorer;
 protected:
     void configure_theory() override { solver.setLogic("QF_BV"); }
     void build_variables_and_bounds() override {
@@ -41,9 +41,9 @@ protected:
 
 // Colors 0..K-1: only the upper bound x <=u K-1 (the lower bound 0 is free),
 // at the smallest width w with 2^w >= K. When K = 2^w (K >= 2), no bound at all.
-class BvZeroColorer : public AbstractGraphColorer {
+class BvZeroColorer : public Cvc5Colorer {
 public:
-    using AbstractGraphColorer::AbstractGraphColorer;
+    using Cvc5Colorer::Cvc5Colorer;
 protected:
     void configure_theory() override { solver.setLogic("QF_BV"); }
     void build_variables_and_bounds() override {
@@ -73,9 +73,9 @@ protected:
 //   a_b = (E with bits b..0 cleared) | (2^b - 1)
 // and one literal (x & ~a_b) != 0. The colors left are E, ..., 2^w - 1.
 // K = 2^w needs no literal; K = 2^w - 2^j needs one; never more than w - 1.
-class BvAndColorer : public AbstractGraphColorer {
+class BvAndColorer : public Cvc5Colorer {
 public:
-    using AbstractGraphColorer::AbstractGraphColorer;
+    using Cvc5Colorer::Cvc5Colorer;
 protected:
     void configure_theory() override { solver.setLogic("QF_BV"); }
     void build_variables_and_bounds() override {
@@ -110,11 +110,11 @@ protected:
 // Each node is an unconstrained 32-bit vector x, and its color is x urem K. Edges
 // compare the residues. Bit-vectors cannot be unbounded, so 32 bits stands in for
 // "much wider than needed": 2^32 values fold onto K colors.
-class BvModColorer : public AbstractGraphColorer {
+class BvModColorer : public Cvc5Colorer {
 private:
     static const int WIDTH = 32;
 public:
-    using AbstractGraphColorer::AbstractGraphColorer;
+    using Cvc5Colorer::Cvc5Colorer;
 protected:
     void configure_theory() override { solver.setLogic("QF_BV"); }
     void build_variables_and_bounds() override {
@@ -144,9 +144,9 @@ protected:
 //   x != 0 and (x & (x - 1)) = 0   (x - 1 clears the lowest set bit, so the AND
 //                                    is 0 iff x had at most one set bit)
 // Two one-hot vectors differ iff they share no bit, so edges are (u & v) = 0.
-class BvOneHotColorer : public AbstractGraphColorer {
+class BvOneHotColorer : public Cvc5Colorer {
 public:
-    using AbstractGraphColorer::AbstractGraphColorer;
+    using Cvc5Colorer::Cvc5Colorer;
 protected:
     void configure_theory() override { solver.setLogic("QF_BV"); }
     void build_variables_and_bounds() override {
@@ -178,12 +178,12 @@ protected:
 //   BV-ORDER:        (x & (x + 1)) = 0      x + 1 is a power of 2 (or wraps to 0 for 1...1)
 //   BV-ORDER-SHIFT:  ((x >> 1) & ~x) = 0    bit b+1 set implies bit b set (no adder)
 // Edges stay u != v. With K = 1 the width would be 0, so x is 1 bit fixed to 0.
-class BvOrderColorer : public AbstractGraphColorer {
+class BvOrderColorer : public Cvc5Colorer {
 private:
     bool use_shift;
 public:
     BvOrderColorer(int k, bool model, bool print, bool use_shift)
-        : AbstractGraphColorer(k, model, print), use_shift(use_shift) {}
+        : Cvc5Colorer(k, model, print), use_shift(use_shift) {}
 protected:
     void configure_theory() override { solver.setLogic("QF_BV"); }
     void build_variables_and_bounds() override {
@@ -212,7 +212,7 @@ protected:
 
 }  // namespace
 
-void register_bv(Registry& registry) {
+void register_bv(Cvc5Registry& registry) {
     registry.add("BV", make<BvColorer>());
     registry.add("BV-ZERO", make<BvZeroColorer>());
     registry.add("BV-AND", make<BvAndColorer>());

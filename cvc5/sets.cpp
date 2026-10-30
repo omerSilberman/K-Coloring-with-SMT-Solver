@@ -225,7 +225,7 @@ protected:
 
 }  // namespace
 
-void register_sets(Registry& registry) {
+void register_sets(Cvc5Registry& registry) {
     registry.add_generic("SET-CUBE", "INT", make_generic<SetCubeColorer>());
     registry.add_generic("SET-MASK", "INT", make_generic<SetMaskColorer>());
     registry.add_generic("SET-MEM", "INT", make_generic<SetMemberColorer>());

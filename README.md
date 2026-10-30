@@ -1,6 +1,6 @@
 # K-Coloring with SMT Solvers
 
-A C++ benchmark suite for **graph K-coloring encoded in different SMT theories**, solved with [cvc5](https://cvc5.github.io/). Given a graph in DIMACS `.col` format and a number of colors `K`, each encoding asks: *can the nodes be colored with at most K colors so that no edge joins two nodes of the same color?*
+A C++ benchmark suite for **graph K-coloring encoded in different SMT theories**, solved with [cvc5](https://cvc5.github.io/) and [Z3](https://github.com/Z3Prover/z3) (and the trig encodings also with [dReal](https://github.com/dreal/dreal4)). Given a graph in DIMACS `.col` format and a number of colors `K`, each encoding asks: *can the nodes be colored with at most K colors so that no edge joins two nodes of the same color?*
 
 All encodings share the same skeleton:
 
@@ -12,7 +12,7 @@ Nine encodings never look at what their elements are: they get their structure f
 
 A few encodings deliberately break this skeleton to try out other ideas. Some replace `!=` with a theory-specific edge constraint (`BV-ONEHOT`, `INT-MOD`, `BV-MOD`, `FF-NULL`, `SEP`). Some have no per-node variable at all (`SET-CLASSES`, `REL-JOIN`). `UF-CARD` has no domain constraint at all: one cardinality constraint on the sort replaces all of them (see [`UF-CARD`](#uf-card-the-sorts-size-is-the-domain)). They are described in [Encodings beyond the skeleton](#encodings-beyond-the-skeleton).
 
-The point is to compare how the solver copes with the *same* combinatorial problem when it is expressed through different theories. Several encodings (notably the array chains) follow Roberto Sebastiani, *"Colors Make Theories Hard"* (IJCAR 2016).
+The point is to compare how a solver copes with the *same* combinatorial problem when it is expressed through different theories, and how different solvers cope with the same encoding (see [cvc5 and Z3](#cvc5-and-z3)). Several encodings (notably the array chains) follow Roberto Sebastiani, *"Colors Make Theories Hard"* (IJCAR 2016).
 
 ---
 
@@ -20,16 +20,19 @@ The point is to compare how the solver copes with the *same* combinatorial probl
 
 | Path | Description |
 |------|-------------|
-| `cvc5/` | **Main tool.** All 45 encodings, 9 of them theory-independent and runnable over any of 9 element theories, written against the native cvc5 C++ API, one file per theory family (see [Source layout](#source-layout-cvc5)). Built as `smt_solver_cvc5`. |
+| `cvc5/` | **Main tool.** All 45 encodings, 9 of them theory-independent and runnable over any of 9 element theories, written against the native cvc5 C++ API, one file per theory family. Built as `smt_solver_cvc5`. See [Source layout](#source-layout). |
+| `z3/` | The same encodings with the Z3 C++ API, as far as Z3 has the theories (36 of 45; no finite fields, separation logic or trigonometry). Same files, names, command line and output. Built as `smt_solver_z3`. See [cvc5 and Z3](#cvc5-and-z3). |
+| `dreal/` | The four trig encodings (`NLRA-SIN`, `NLRA-COS`, `NLRA-SINCOS`, `NLRA-SINPI`) solved by the delta-complete solver [dReal](https://github.com/dreal/dreal4). Same command line and output, run as `dreal/smt_solver_dreal.py`. See [dReal](#dreal-delta-complete-trig-solver). |
+| `common/` | What every engine shares: the base class and run/print protocol, the name registry, the command line, DIMACS reading (C++ and Python), string helpers. |
 | `smt_solver.cpp` | Older version built on [smt-switch](https://github.com/stanford-centaur/smt-switch) with a cvc5 backend; supports a subset of 8 encodings. Built as `smt_solver`. |
-| `smt_solver_dreal.py` | The four trig encodings (`NLRA-SIN`, `NLRA-COS`, `NLRA-SINCOS`, `NLRA-SINPI`) solved by the delta-complete solver [dReal](https://github.com/dreal/dreal4) instead of cvc5. Same command line and output as `smt_solver_cvc5`. See [dReal](#dreal-delta-complete-trig-solver). |
 | `smt_solver_bv.cpp`, `smt_solver_sym.cpp` | Early standalone prototypes (smt-switch). **Not** built by CMake. |
-| `gui/` | **K-Coloring Explorer**, a local web UI: pick a graph, a solver and K, see the formulas in math notation and the coloring. See [Explorer](#explorer-web-ui). |
+| `gui/` | **K-Coloring Explorer**, a local web UI: pick a graph, a solver (cvc5, Z3, dReal), an encoding and K, see the formulas in math notation and the coloring. See [Explorer](#explorer-web-ui). |
 | `benchmark.py` | Runs a set of solvers over many graphs with a timeout and prints/logs a comparison table. |
 | `find_optimal_k.py` | Computes the chromatic number (or an upper bound) for each graph and writes it to `optimal_k_values.json`. |
 | `gen_substring_strings.py` | Writes `substring_strings.txt`: for each K, the shortest string with exactly K distinct substrings. Run `python3 gen_substring_strings.py [MAX_K]` (default 20; 60 takes a few seconds, 80 a few minutes). |
-| `substring_strings.txt` | Lookup table used by the `STR-SUB` encoding. Its absolute path is compiled into `smt_solver_cvc5`, so the binary finds it from any directory. |
+| `substring_strings.txt` | Lookup table used by the `STR-SUB` encoding. Its absolute path is compiled into `smt_solver_cvc5` and `smt_solver_z3`, so the binaries find it from any directory. |
 | `solvers_cvc5.conf` | Solver list for `benchmark.py` that uses `build/smt_solver_cvc5`. |
+| `solvers_z3.conf` | The same for `build/smt_solver_z3` (+ OR-Tools). |
 | `solvers_trig.conf` | Solver list for `benchmark.py` that runs each trig encoding with both cvc5 and dReal (+ OR-Tools). |
 | `solvers_switch.conf` | Solver list for `benchmark.py` that uses `build/smt_solver` (+ OR-Tools). Default config. |
 | `optimal_k_values.json` | Maps graph path to the K used in benchmarks. |
@@ -40,40 +43,42 @@ The point is to compare how the solver copes with the *same* combinatorial probl
 | `logs/` | Benchmark logs written by `benchmark.py` (git-ignored). |
 
 
-### Source layout (`cvc5/`)
+### Source layout
 
-| File | Contents |
-|---|---|
-| `colorer.h` | `AbstractGraphColorer`, the base class of every encoding: the cvc5 solver, `node_vars`, the `configure_theory` / `build_variables_and_bounds` / `edge_constraint` hooks, and the SAT/UNSAT/MODEL output |
-| `graph.h` | `read_dimacs`. No cvc5 types, so it can be shared once another solver gets its own folder |
-| `elements.h`, `elements.cpp` | The element theories (`INT`, `REAL`, `BV`, ...) and `ElementGenericColorer`, the base of the theory-independent encodings |
-| `registry.h`, `registry.cpp` | Maps names (`BV-AND`, `SET-MEM-UF`, ...) to encodings, and prints the theory lists of `--help` |
-| `main.cpp` | Command line (`--model`, `--print-asserts`, `--opt`) and the list of theory files to register |
-| `util.h` | Small shared helpers (`is_prime`) |
-| `int.cpp` | `LIA`, `IDL`, `INT-MOD`, `INT-POW2` |
-| `bv.cpp` | `BV`, `BV-ZERO`, `BV-AND`, `BV-MOD`, `BV-ONEHOT`, `BV-ORDER`, `BV-ORDER-SHIFT` |
-| `fp.cpp` | `FP` |
-| `real.cpp` | `NLRA`, `NLRA-SQRT`, `NLRA-ROOTS`, `NLRA-SIN`, `NLRA-COS`, `NLRA-SINCOS`, `NLRA-SINPI` |
-| `ff.cpp` | `FF-PRIME`, `FF-POLY`, `FF-ROOTS`, `FF-NULL` |
-| `uf.cpp` | `LIST-UF`, `UF`, `UF-CARD`, `OR-<ELEM>` |
-| `datatypes.cpp` | `LIST-DT`, `PEANO` |
-| `bool.cpp` | `BOOL-DIRECT`, `BOOL-DIRECT-AMO` |
-| `strings.cpp` | `STRING`, `STR-LEX`, `STR-INT`, `STR-REG`, `STR-SUB` |
-| `sets.cpp` | `SET-CUBE`, `SET-MASK`, `SET-MEM`, `SET-CLASSES`, `REL-JOIN` (all `-<ELEM>`) |
-| `arrays.cpp` | `ARR-MAP`, `ARR-EXP-<ELEM>`, `ARR-INL-<ELEM>` |
-| `sep.cpp` | `SEP-<ELEM>` |
+Each SMT solver ("engine") has its own folder, and everything that does not depend on the solver is in `common/`:
 
-Each theory file keeps its encodings in an anonymous namespace and ends with one `register_<theory>(Registry&)` function, for example:
+```
+common/   graph.h, graph.py   DIMACS reading (C++ for the engines, Python for dReal and the GUI)
+          colorer.h           GraphColorer: graph, K, flags, and the run/print protocol
+          registry.h          Registry<Colorer, Elements>: encodings by name, and --help
+          cli.h               run_cli(): the command line every binary shares
+          strings.h, util.h   int_to_alpha, the STR-SUB word table, is_prime
+cvc5/     colorer.h           Cvc5Colorer : GraphColorer, with tm, solver, node_vars
+          elements.h/.cpp     the element theories and ElementGenericColorer
+          registry.h          Cvc5Registry = Registry<Cvc5Colorer, ElementTheory>
+          main.cpp            which theory files to register, then run_cli()
+          int.cpp bv.cpp fp.cpp real.cpp ff.cpp uf.cpp datatypes.cpp bool.cpp
+          strings.cpp sets.cpp arrays.cpp sep.cpp
+z3/       the same structure: Z3Colorer, Z3's element theories, the same theory files
+          (no ff.cpp, no sep.cpp; real.cpp without the trig encodings)
+dreal/    smt_solver_dreal.py  the command line
+          trig_encodings.py    the four trig queries and the rounding back to exact roots
+          runner.py            running the dReal binary and reading its boxes
+```
+
+**The shared base class.** `GraphColorer` (in `common/colorer.h`) holds what every encoding has, whatever the solver: the graph, K, the flags, and `solve()`, which runs the steps in order (solver options, `configure_theory`, `build_variables_and_bounds`, edge constraints) and prints `SAT`/`UNSAT`/`UNKNOWN` and the model in the format `benchmark.py` and the GUI read. The solver-specific part is a handful of hooks (set an option, add the edge constraints, list the assertions, check, print the model), which `Cvc5Colorer` and `Z3Colorer` implement once. The encodings themselves derive from those two, because building a term is different in each API (`tm.mkTerm(cvc5::Kind::BITVECTOR_AND, {x, m})` against `x & m`). A shared term layer on top of both would be smt-switch again, and would not cover the encodings that use one solver's own features (`fmf.card`, separation logic, finite fields).
+
+Each theory file keeps its encodings in an anonymous namespace and ends with one `register_<theory>` function, for example:
 
 ```cpp
-void register_bv(Registry& registry) {
+void register_bv(Cvc5Registry& registry) {
     registry.add("BV", make<BvColorer>());
     registry.add("BV-ORDER-SHIFT", make<BvOrderColorer>(true));   // extra constructor arguments
     ...
 }
 ```
 
-**Adding an encoding**: write a class deriving from `AbstractGraphColorer` in the matching theory file and add one `registry.add(...)` line; it then shows up in `--help`, and therefore in the GUI's solver list. **Adding a theory file**: create `cvc5/<theory>.cpp` with a `register_<theory>` function, declare it in `registry.h`, and add it to the list in `main.cpp` (that list sets the order of `--help`; files are registered explicitly rather than through static objects, whose initialization order across files is unspecified). CMake picks up the new file on its own.
+**Adding an encoding**: write a class deriving from the engine's base class (`Cvc5Colorer` or `Z3Colorer`) in the matching theory file and add one `registry.add(...)` line; it then shows up in `--help`, and therefore in the GUI. **Adding a theory file**: create `<engine>/<theory>.cpp` with a `register_<theory>` function, declare it in the engine's `registry.h`, and add it to the list in its `main.cpp` (that list sets the order of `--help`; files are registered explicitly rather than through static objects, whose initialization order across files is unspecified). CMake picks up the new file on its own. **Adding an engine**: a new folder with a `GraphColorer` subclass, its element theories, the theory files and a `main.cpp` that calls `run_cli`, plus a target in `CMakeLists.txt` and an entry in `ENGINES` in `gui/kcolor_gui.py`.
 
 ---
 
@@ -199,7 +204,7 @@ Each node is a bit-vector of width K, and color `c` is the vector with only bit 
 - `x != 0`: at least one bit is set.
 - `(x & (x - 1)) = 0`: at most one bit is set. Subtracting 1 clears the lowest set bit and turns the zeros below it into ones, so `x & (x - 1)` is `x` with its lowest set bit removed. It is 0 exactly when `x` had at most one set bit.
 
-Since two one-hot vectors are equal exactly when they share their single bit, the edge constraint becomes bitwise too: `(u & v) = 0` instead of `u != v`. To support this, `AbstractGraphColorer` has a virtual `edge_constraint(u, v)` that defaults to `u != v`.
+Since two one-hot vectors are equal exactly when they share their single bit, the edge constraint becomes bitwise too: `(u & v) = 0` instead of `u != v`. To support this, the engine base class (`Cvc5Colorer`, `Z3Colorer`) has a virtual `edge_constraint(u, v)` that defaults to `u != v`.
 
 This is the opposite trade-off to `BV-AND`: width K instead of `ceil(log2 K)`, but every color is a single bit, so after bit-blasting the solver works with K Boolean "node has color c" variables, close to the classic SAT encoding of graph coloring. It is not purely bitwise, since `x - 1` is a subtraction.
 
@@ -504,7 +509,7 @@ So the domain is "be a subset of U", and when K is not a power of 2, the extra `
 
 ### Encodings beyond the skeleton
 
-The encodings in this section were added to explore unusual ideas rather than to be fast: different domains, edge constraints that are not `!=`, and encodings with no per-node variable at all. Two virtual hooks in `AbstractGraphColorer` make this possible: `edge_constraint(u, v)` receives the two nodes' terms and defaults to `u != v`, and `edge_constraint_between(u, v)` receives the node *ids*, for encodings where a node's color is not one term. `edge_constraint_between` may return a null term to assert nothing for that edge.
+The encodings in this section were added to explore unusual ideas rather than to be fast: different domains, edge constraints that are not `!=`, and encodings with no per-node variable at all. Two virtual hooks in the engine base classes (`Cvc5Colorer`, `Z3Colorer`) make this possible: `edge_constraint(u, v)` receives the two nodes' terms and defaults to `u != v`, and `edge_constraint_between(u, v)` receives the node *ids*, for encodings where a node's color is not one term. `edge_constraint_between` may return a null term to assert nothing for that edge.
 
 **First results** (20 s timeout; every SAT model was checked against the edge list):
 
@@ -662,7 +667,18 @@ Both binaries need **cvc5** built with CaDiCaL and libpoly, and `smt_solver` als
 
    `~/smt-switch/deps/cvc5/bin/cvc5 --show-config` should then report `cocoa : yes`. Rebuild this project afterwards.
 
-4. *(Only for `smt_solver_dreal.py`.)* dReal 4.21.06.2, unpacked from `.deb` files into `~/dreal/root` (no root access, nothing installed system-wide). dReal's last release targets Ubuntu 20.04, so its ibex dependency comes from the dReal PPA's 24.04 build and the other libraries from your distribution:
+4. *(Only for `smt_solver_z3`.)* Z3 5.1.0, the official prebuilt release unpacked into `~/z3` (no root access; it has the C++ header `z3++.h`, `libz3.so` and the `z3` binary):
+
+   ```bash
+   mkdir -p ~/z3 && cd ~/z3
+   wget https://github.com/Z3Prover/z3/releases/download/z3-5.1.0/z3-5.1.0-x64-glibc-2.39.zip
+   sha256sum z3-5.1.0-x64-glibc-2.39.zip   # f47be8d27d3230e823bf1eeede2fe0abaca55bb78d0b59974370e6689a92284a
+   unzip z3-5.1.0-x64-glibc-2.39.zip && rm z3-5.1.0-x64-glibc-2.39.zip
+   ```
+
+   CMake looks for it in `Z3_ROOT`, which defaults to `~/z3/z3-5.1.0-x64-glibc-2.39`; without it, `smt_solver_z3` is simply not built. (5.1.0 rather than the newest 5.3.x: the 5.3 line had four patch releases in the two weeks before this was set up.)
+
+5. *(Only for `dreal/`.)* dReal 4.21.06.2, unpacked from `.deb` files into `~/dreal/root` (no root access, nothing installed system-wide). dReal's last release targets Ubuntu 20.04, so its ibex dependency comes from the dReal PPA's 24.04 build and the other libraries from your distribution:
 
    ```bash
    mkdir -p ~/dreal/debs && cd ~/dreal/debs
@@ -672,7 +688,7 @@ Both binaries need **cvc5** built with CaDiCaL and libpoly, and `smt_solver` als
    for f in *.deb; do dpkg-deb -x "$f" ~/dreal/root; done
    ```
 
-   `smt_solver_dreal.py` sets `LD_LIBRARY_PATH` itself. To use another location, set `DREAL_ROOT`.
+   `dreal/runner.py` sets `LD_LIBRARY_PATH` itself. To use another location, set `DREAL_ROOT`.
 
 **Python side** (for the scripts)
 
@@ -694,6 +710,7 @@ cmake --build build -j
 This produces:
 
 - `build/smt_solver_cvc5`: native cvc5, all 45 encodings (every `.cpp` in `cvc5/`; a new file there is picked up on the next build)
+- `build/smt_solver_z3`: native Z3, 36 encodings (every `.cpp` in `z3/`), if Z3 was found (`-DZ3_ROOT=/path/to/z3-release` to point CMake at it)
 - `build/smt_solver`: smt-switch, 8 encodings
 
 CMake finds smt-switch and cvc5 through `SMT_SWITCH_DIR`, which defaults to `~/smt-switch`. If your checkout is somewhere else, pass the path:
@@ -702,23 +719,26 @@ CMake finds smt-switch and cvc5 through `SMT_SWITCH_DIR`, which defaults to `~/s
 cmake -S . -B build -DSMT_SWITCH_DIR=/path/to/smt-switch
 ```
 
-No `LD_LIBRARY_PATH` is needed to run the binaries: cvc5 is linked statically, and the path to the smt-switch libraries is built into `smt_solver`.
+No `LD_LIBRARY_PATH` is needed to run the binaries: cvc5 is linked statically, and the paths to `libz3.so` and the smt-switch libraries are built into `smt_solver_z3` and `smt_solver`.
 
 ---
 
 ## Running a single instance
 
-### `smt_solver_cvc5`
+### `smt_solver_cvc5` and `smt_solver_z3`
 
 ```bash
-./build/smt_solver_cvc5 <THEORY> <graph.col> <K> [--model] [--print-asserts]
+./build/smt_solver_cvc5 <THEORY> <graph.col> <K> [--model] [--print-asserts] [--opt NAME=VALUE]...
+./build/smt_solver_z3   <THEORY> <graph.col> <K> [--model] [--print-asserts] [--opt NAME=VALUE]...
 ```
+
+Both binaries share the command line and the output format (`common/cli.h`); `--help` lists the encodings each one has.
 
 | Option | Effect |
 |--------|--------|
 | `--model` | If SAT, print the coloring (`MODEL: node_1: ... node_2: ...`). Array encodings also print their index variables (`i_1_*` or `idx_*`). |
 | `--print-asserts` | Dump every asserted formula, in SMT-LIB-like syntax, before solving. |
-| `--opt NAME=VALUE` | Set a cvc5 option, e.g. `--opt bitblast=eager`. Repeatable; `--opt NAME` alone means `NAME=true`. Options are set before the encoding configures the solver, so options an encoding requires (such as `SEP`'s non-incremental mode) still win. See [cvc5 options for `BV`](#cvc5-options-for-bv). |
+| `--opt NAME=VALUE` | Set a solver option: for cvc5 e.g. `--opt bitblast=eager`, for Z3 a global parameter such as `--opt sat.euf=true` or `--opt smt.random_seed=7`. Repeatable; `--opt NAME` alone means `NAME=true`. Options are set before the encoding configures the solver, so options an encoding requires (such as `SEP`'s non-incremental mode) still win. See [cvc5 options for `BV`](#cvc5-options-for-bv). |
 | `--help`, `-h` | Show usage and the list of theories. |
 
 Options can appear anywhere on the command line. The program prints one of `SAT`, `UNSAT` or `UNKNOWN`.
@@ -739,10 +759,10 @@ Example on the bundled triangle graph, which needs 3 colors:
 
 Supports `LIA`, `BV`, `NLRA`, `LIST-UF`, `LIST-DT`, `UF`, `STRING`, `STR-LEX`. Here `--model` must be the 4th argument.
 
-### `smt_solver_dreal.py`
+### `dreal/smt_solver_dreal.py`
 
 ```bash
-./smt_solver_dreal.py <THEORY> <graph.col> <K> [--model] [--print-asserts] [--precision D] [--jobs N]
+./dreal/smt_solver_dreal.py <THEORY> <graph.col> <K> [--model] [--print-asserts] [--precision D] [--jobs N]
 ```
 
 `THEORY` is one of `NLRA-SIN`, `NLRA-COS`, `NLRA-SINCOS`, `NLRA-SINPI`. `--print-asserts` prints the SMT-LIB query sent to dReal, `--precision` sets dReal's delta (default 0.001), and `--jobs` sets dReal's number of parallel search threads (default 8). Output is `SAT`, `UNSAT` or `UNKNOWN`, as for `smt_solver_cvc5`; models print each node's root, e.g. `node_1: 2*pi`.
@@ -763,7 +783,7 @@ e 1 3
 
 ## Explorer (web UI)
 
-`gui/` holds a small web app for running one instance and looking at it. It needs nothing beyond Python 3 and a built `build/smt_solver_cvc5`:
+`gui/` holds a small web app for running one instance and looking at it. It needs nothing beyond Python 3 and at least one built solver (`build/smt_solver_cvc5`, `build/smt_solver_z3`, or dReal):
 
 ```bash
 ./gui/kcolor_gui.py               # opens http://127.0.0.1:8765/ in your browser
@@ -771,9 +791,10 @@ e 1 3
 ```
 
 - **Graph**: every `.col` / `.clq` under `benchmarks/` (plus `test.col`), searchable, with its node and edge counts. K defaults to the value in `optimal_k_values.json`, with a link back to it if you change K.
-- **cvc5 options**: clickable chips under the solver for the options worth trying, shown only where they apply (eager bit-blasting only for the pure bit-vector encodings). Each chip's tooltip says what it did to `BV` in the benchmark. Any other option can be typed as `NAME=VALUE`; a typed option overrides a chip with the same name.
-- **Solver**: every theory that `smt_solver_cvc5 --help` lists, grouped by theory. The theory-independent encodings get an element-theory picker. The four trig encodings can also run with dReal (`smt_solver_dreal.py`).
-- **Formulas**: the assertions from `--print-asserts`, shown as math: `node₁ ∈ {0, 1, 2}`, `A₂,₁ = A₁,₁[i₁,₁ ↦ 0]`, `(E ⋈ C) ∩ C = ∅`, `c₁ ↦ E0 ∗ c₂ ↦ E0`, with `let` bindings inlined. The **SMT-LIB** toggle shows the raw text, and the filter searches it. Up to 5,000 formulas are sent to the page; the rest are only counted.
+- **Solver**: cvc5, Z3 or dReal. A solver that is not built shows as not available.
+- **Encoding**: every encoding that solver's `--help` lists, grouped by theory, so the list only shows what that solver can run. The theory-independent encodings get an element-theory picker. Switching solvers keeps the encoding when the other solver has it too (`BV` in cvc5 → `BV` in Z3), so one encoding is easy to compare across solvers.
+- **Solver options** (collapsed by default): clickable chips for the options worth trying, shown only where they apply (for cvc5, eager bit-blasting only for the pure bit-vector encodings; for Z3, the new SAT core `sat.euf`, not for strings). Each chip's tooltip says what it did in the benchmarks. Any other option can be typed as `NAME=VALUE`; a typed option overrides a chip with the same name. dReal takes no options.
+- **Formulas**: the assertions from `--print-asserts`, shown as math: `node₁ ∈ {0, 1, 2}`, `A₂,₁ = A₁,₁[i₁,₁ ↦ 0]`, `(E ⋈ C) ∩ C = ∅`, `c₁ ↦ E0 ∗ c₂ ↦ E0`, with `let` bindings inlined. Z3's own notation is translated too: its sets are arrays (`store(const(false), …)` becomes `{…}`), and `lambda`/`exists`/`forall` become `λ`/`∃`/`∀`. The **SMT-LIB** toggle shows the raw text, and the filter searches it. Up to 5,000 formulas are sent to the page; the rest are only counted.
 - **While solving**: a spinner, a running timer and the phase (building the formula, solving). **Stop** kills the solver process. An optional time limit does the same automatically.
 - **Result**: SAT, UNSAT, UNKNOWN, time limit or error (with the solver's message). For SAT: a legend of the colors used, with counts. The server checks the coloring against every edge ("Valid coloring", or the conflicting edges in red). Graphs up to 300 nodes are drawn with a force-directed layout, colored by the model; hovering a node shows its value, and clicking a color in the legend highlights its nodes. **Show the color of every node** lists all nodes and can be filtered. The **Node numbers / Assigned values** toggle labels the drawing and that list either by node number (and color number) or by the value the solver assigned, in a short form (`A` for `"A"`, `{E0, E1}`, `01₂`, `π` for dReal's `1*pi`).
 - **Theme**: Light, Dark, or Auto (follow the system), top right. The choice is remembered.
@@ -830,11 +851,56 @@ Two names are handled specially: `OR-Tools` runs Google OR-Tools CP-SAT in-proce
 
 ---
 
+## cvc5 and Z3
+
+`smt_solver_z3` runs the same encodings with [Z3](https://github.com/Z3Prover/z3) 5.1.0 through its C++ API: the same names, command line, output and theory files (`z3/` mirrors `cvc5/`, see [Source layout](#source-layout)). The formulas are the same wherever Z3 has the theory, so the two solvers can be compared encoding by encoding, and the GUI switches between them with one dropdown.
+
+**What Z3 has.** 36 of the 45 encodings, and 8 of the 9 element theories:
+
+| | |
+|---|---|
+| Same formula as cvc5 | `LIA`, `IDL`, `INT-MOD`, all `BV-*`, `FP`, `NLRA`, `NLRA-SQRT`, `NLRA-ROOTS`, `LIST-UF`, `UF`, `LIST-DT`, `PEANO`, `BOOL-DIRECT(-AMO)`, all `STR*`, `ARR-MAP`, and `OR`, `SET-CUBE`, `SET-MASK`, `SET-MEM`, `SET-CLASSES`, `ARR-EXP`, `ARR-INL` over every element theory but `FF`. Z3's sets are arrays to Bool (`subset`, `store(const(false), e, true)`, ...), which is how Z3 writes the same set operations |
+| Same meaning, different formula | `UF-CARD`: Z3 has no cardinality constraint (`fmf.card`), so "at most K elements" is the quantified axiom `∀x. x = d₁ ∨ … ∨ x = d_K` with K constants, solved by model-based quantifier instantiation. `INT-POW2`: no `int.pow2`, so `2^e` with Z3's general power operator. `REL-JOIN`: no relations, so relations are sets of tuple datatypes, and `join`/`product` are lambdas; the joined column ranges over the finite node or color set, written as a disjunction (see below). `BOOL-DIRECT`: Z3 has no `QF_SAT`, so it runs in `QF_FD`, Z3's finite-domain (SAT-based) logic |
+| Not in Z3 | `FF-*` and the `FF` element theory (no finite fields), `SEP` (no separation logic), and the trig encodings `NLRA-SIN`, `-COS`, `-SINCOS`, `-SINPI`: Z3 accepts `sin` but answers `unknown` even with a root pinned to [3, 3.2], and its C++ API has no sine. dReal covers those |
+
+**Correctness.** Every Z3 encoding (84 names: generic ones with every element theory but `BOOL`, which has only 2 elements) was run on the complete graphs `K_2` .. `K_6` (`K_K` SAT, `K_(K+1)` UNSAT) and on `myciel3` (K = 4 SAT, K = 3 UNSAT), every SAT model checked against the edges. All answers were right after one fix. The first `REL-JOIN` translation used `∃v` inside the lambdas, and on `K_4` with `BV` elements Z3 answered SAT with a model in which two adjacent nodes had the same color: the model violates `(E join C) ∩ C = ∅`, but model-based quantifier instantiation accepted it (Z3's own `model_validate` does not catch it either, since it cannot evaluate the quantified assertions). The relations are finite, so `∃v` is the same as a disjunction over the nodes, and with that quantifier-free version every test passes, faster. The GUI checks every model against the edges for exactly this kind of problem.
+
+Some encodings are much slower in Z3 on tiny instances: `STR-INT` times out on UNSAT triangles, `STR-LEX` on most instances, and `SET-CLASSES-DT` times out even on the SAT triangle. The last one is Z3's default core: with `--opt sat.euf=true` (Z3's newer SAT-based core for equality, also a chip in the GUI) it takes 0.1 s. `sat.euf` is not a general fix: it does not support strings at all, and it made `REL-JOIN-FP` time out instead of answering `unknown`.
+
+**Comparison.** Every encoding both solvers have (36; generic ones with their default element theory), on three SAT and three UNSAT instances: `myciel4` (K = 5 / 4), `queen5_5` (K = 5 / 4), `DSJC125.1` (K = 5) and `1-FullIns_4` (K = 4). 30 s timeout, 8 runs in parallel, every SAT model checked.
+
+| | cvc5 | Z3 |
+|---|---|---|
+| Solved (of 216) | 164 | **177** |
+| Total time (timeouts as 30 s) | 1919 s | **1397 s** |
+| Faster by more than 1.25x (instances solved by at least one) | 53 | **117** |
+
+Per encoding (solved of 6, total seconds):
+
+| Encoding | cvc5 | Z3 | | Encoding | cvc5 | Z3 |
+|---|---|---|---|---|---|---|
+| `BV` | 6, 0.7 | 6, 0.6 | | `NLRA` | 0, 180 | **5, 32** |
+| `BV-AND` | **6, 0.8** | 6, 11.3 | | `NLRA-SQRT` | 0, 180 | **5, 34** |
+| `BV-ONEHOT` | 6, 0.5 | 6, 0.3 | | `NLRA-ROOTS` | 0, 180 | **5, 43** |
+| `BV-ORDER` | 6, 1.0 | 6, 0.4 | | `FP` | 5, 58 | **6, 2.3** |
+| `BOOL-DIRECT` | 6, 0.2 | 6, 0.2 | | `ARR-EXP` | 5, 43 | **6, 2.5** |
+| `LIA` | 6, 38 | 5, 32 | | `ARR-MAP` | 3, 100 | **5, 48** |
+| `IDL` | **6, 28** | 4, 60 | | `INT-POW2` | 3, 107 | **5, 49** |
+| `PEANO` | **6, 22** | 5, 53 | | `SET-MEM` | 6, 14 | **6, 1.4** |
+| `STR-LEX` | **3, 99** | 0, 180 | | `SET-CLASSES` | 6, 27 | **6, 6.9** |
+| `STR-REG` | **5, 32** | 4, 78 | | `UF-CARD` | 6, 9.1 | **6, 0.9** |
+| `STR-SUB` | **3, 94** | 2, 127 | | `UF` | 6, 2.4 | **6, 0.2** |
+| `SET-MASK` | **2, 143** | 1, 170 | | `STRING` | 5, 32 | **6, 0.9** |
+
+- **Z3 is faster on most encodings**, and by far on nonlinear real arithmetic (its `nlsat` solver solves 5 of 6 where cvc5 times out on all six), floating point, the array chains, and anything built on equality between constants (`UF`, `LIST-DT`, `SET-MEM`, `STRING`, `UF-CARD`). Its quantified `UF-CARD` is even 10x faster than cvc5's dedicated cardinality solver on these instances.
+- **cvc5 is faster on the string encodings** that use string operations (`STR-LEX`, `STR-REG`, `STR-SUB`; Z3 solves `STRING` itself, which is only equalities between literals, much faster), on `IDL` and `PEANO`, and on `BV-AND`.
+- **The bit-vector and SAT encodings are a tie.** `BV`, `BV-ONEHOT`, `BV-ORDER` and `BOOL-DIRECT` take well under a second in both: both solvers bit-blast them to a SAT solver, and the encoding matters more than the solver. These six instances are small, though; the full `BV` comparisons elsewhere in this README are for cvc5.
+
 ## dReal: delta-complete trig solver
 
 cvc5 proves the trig encodings UNSAT but never SAT. The roots of sin and cos (other than 0) are irrational, and cvc5 only reports SAT for a model it can check exactly. No cvc5 option changes this. A **delta-complete** solver answers a weaker question: given a small delta, it returns either `unsat` (sound, as in cvc5) or `delta-sat`, meaning each constraint holds up to delta (`f(x) = 0` becomes `|f(x)| <= delta`). dReal does this with interval constraint propagation and branch-and-prune, and reports a narrow box around each variable, e.g. `node_1 : [3.1415926535897931, 3.1415926535897936]`.
 
-`smt_solver_dreal.py` uses the same encodings as `smt_solver_cvc5` with two differences:
+`dreal/` (`trig_encodings.py`) uses the same encodings as `smt_solver_cvc5` with two differences:
 
 - **Edges are `|u - v| >= step/2`, not `u != v`.** Under delta-weakening, `u != v` is satisfied by `u = v`, so every graph would come back delta-sat. Distinct roots are a full step apart (pi, pi/2 or 1), so a separation of half a step means "different roots". (`abs` was faster than the equivalent `or` of two inequalities.)
 - **The box reaches half a step past the outermost roots**, so it still holds exactly K roots but none of them lies on its boundary. dReal has no exact pi, so pi is a decimal literal.

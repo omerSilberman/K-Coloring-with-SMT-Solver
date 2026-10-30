@@ -7,9 +7,9 @@ namespace {
 // ============================================================================
 // NON-LINEAR REAL ARITHMETIC (NLRA)
 // ============================================================================
-class NlraColorer : public AbstractGraphColorer {
+class NlraColorer : public Cvc5Colorer {
 public:
-    using AbstractGraphColorer::AbstractGraphColorer;
+    using Cvc5Colorer::Cvc5Colorer;
 protected:
     void configure_theory() override { solver.setLogic("QF_NRA"); }
     void build_variables_and_bounds() override {
@@ -35,9 +35,9 @@ protected:
 // Each node is x > 0 with (x^2 - 1)(x^2 - 2)...(x^2 - K) = 0, so the colors are
 // sqrt(1), ..., sqrt(K). Most are irrational like the trig roots, but algebraic,
 // which cvc5's coverings solver represents exactly (unlike pi).
-class NlraSqrtColorer : public AbstractGraphColorer {
+class NlraSqrtColorer : public Cvc5Colorer {
 public:
-    using AbstractGraphColorer::AbstractGraphColorer;
+    using Cvc5Colorer::Cvc5Colorer;
 protected:
     void configure_theory() override { solver.setLogic("QF_NRA"); }
     void build_variables_and_bounds() override {
@@ -66,11 +66,11 @@ protected:
 // two real polynomials of degree K. The corners are cos(2 pi j/K) + i sin(2 pi j/K):
 // the trig encoding again, but every coordinate is algebraic.
 // Two nodes differ if a or b differs.
-class NlraRootsColorer : public AbstractGraphColorer {
+class NlraRootsColorer : public Cvc5Colorer {
 private:
     vector<cvc5::Term> a_vars, b_vars;
 public:
-    using AbstractGraphColorer::AbstractGraphColorer;
+    using Cvc5Colorer::Cvc5Colorer;
 protected:
     void configure_theory() override { solver.setLogic("QF_NRA"); }
     void build_variables_and_bounds() override {
@@ -124,9 +124,9 @@ protected:
 //   sin*cos   roots at n*pi/2        (step pi/2, offset 0)
 // The box is offset + [-lo*step, hi*step] with lo + hi = K - 1,
 // e.g. K = 7 with sin gives -3pi <= x <= 3pi.
-class TrigColorer : public AbstractGraphColorer {
+class TrigColorer : public Cvc5Colorer {
 public:
-    using AbstractGraphColorer::AbstractGraphColorer;
+    using Cvc5Colorer::Cvc5Colorer;
 protected:
     cvc5::Term pi;
 
@@ -197,9 +197,9 @@ protected:
 // ============================================================================
 // sin(pi*x) = 0 exactly when x is an integer, so the colors are rational:
 // x is boxed to [-lo, hi] with lo + hi = K - 1, e.g. K = 3 gives -1 <= x <= 1.
-class SinPiColorer : public AbstractGraphColorer {
+class SinPiColorer : public Cvc5Colorer {
 public:
-    using AbstractGraphColorer::AbstractGraphColorer;
+    using Cvc5Colorer::Cvc5Colorer;
 protected:
     void configure_theory() override { solver.setLogic("QF_NRAT"); }
     void build_variables_and_bounds() override {
@@ -224,7 +224,7 @@ protected:
 
 }  // namespace
 
-void register_real(Registry& registry) {
+void register_real(Cvc5Registry& registry) {
     registry.add("NLRA", make<NlraColorer>());
     registry.add("NLRA-SQRT", make<NlraSqrtColorer>());
     registry.add("NLRA-ROOTS", make<NlraRootsColorer>());

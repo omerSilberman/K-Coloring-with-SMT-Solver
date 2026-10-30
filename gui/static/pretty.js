@@ -73,8 +73,8 @@ const Pretty = (() => {
     ? `<span class="paren">(</span>${r.html}<span class="paren">)</span>` : r.html);
 
   function symbol(name) {
-    // node_12 -> node₁₂ (as a subscript), A_2_1 -> A₂,₁, @Elem_5 -> Elem₅
-    const clean = name.replace(/^\|(.*)\|$/, "$1").replace(/^@/, "");
+    // node_12 -> node₁₂ (as a subscript), A_2_1 -> A₂,₁, @Elem_5 -> Elem₅, Color!val!0 -> Color₀ (Z3)
+    const clean = name.replace(/^\|(.*)\|$/, "$1").replace(/^@/, "").replace(/!val!(\d+)$/, "_$1");
     const m = clean.match(/^([A-Za-z][A-Za-z]*)_(\d+(?:_\d+)*)$/);
     if (m) return atom(span("v", esc(m[1]) + `<sub>${m[2].replace(/_/g, ",")}</sub>`));
     return atom(span("v", esc(clean)));
@@ -100,9 +100,12 @@ const Pretty = (() => {
     return symbol(t);
   }
 
+  // The bits of #b0101 or #x5f (Z3 writes some fp fields in hex)
+  const bitsOf = t => (t.startsWith("#x") ? [...t.slice(2)].map(h => parseInt(h, 16).toString(2).padStart(4, "0")).join("") : t.slice(2));
+
   function floatValue(sign, exp, frac) {
     // (fp #b0 #b01111111 #b000...) -> its decimal value
-    const s = sign.slice(2), e = exp.slice(2), f = frac.slice(2);
+    const s = bitsOf(sign), e = bitsOf(exp), f = bitsOf(frac);
     const bias = 2 ** (e.length - 1) - 1, ev = parseInt(e, 2), fv = parseInt(f, 2) / 2 ** f.length;
     let v;
     if (ev === 2 ** e.length - 1) v = fv ? NaN : Infinity;
@@ -130,8 +133,36 @@ const Pretty = (() => {
     "bvurem": ["mod", 7], "bvudiv": ["÷", 7], "bvand": ["&amp;", 7, true], "set.inter": ["∩", 7, true],
     "rel.product": ["×", 7], "rel.join": ["⋈", 7], "str.++": ["·", 7, true], "re.++": ["·", 7, true], "concat": ["∘", 7, true],
     "bvshl": ["≪", 7], "bvlshr": ["≫", 7], "wand": ["−∗", 2],
+    // Z3's set operations (its sets are arrays to Bool)
+    "subset": ["⊆", 5], "intersection": ["∩", 7, true], "setminus": ["∖", 6],
   };
-  const NEGATED = { "=": "≠", "fp.eq": "≠", "set.member": "∉", "set.subset": "⊈", "str.in_re": "∉" };
+  const NEGATED = { "=": "≠", "fp.eq": "≠", "set.member": "∉", "set.subset": "⊈", "str.in_re": "∉", "subset": "⊈" };
+  const BINDERS = { lambda: "λ", exists: "∃", forall: "∀" };
+
+  // A Z3 set literal: store(...store(const(base), e, v)...), all v the opposite of base.
+  // {members, base}: base "false" is the set {members}, base "true" all elements but them.
+  function z3Set(t) {
+    const members = [];
+    while (Array.isArray(t) && t[0] === "store" && t.length === 4) {
+      members.push(t[2]);
+      const value = t[3];
+      t = t[1];
+      if (value !== "true" && value !== "false") return null;
+      if (z3Base(t) !== null && value === z3Base(t)) return null;
+    }
+    const base = z3Base(t);
+    return base === null ? null : { members: members.reverse(), base };
+  }
+  // "false" / "true" for ((as const (Array T Bool)) false/true), else null
+  function z3Base(t) {
+    const isConst = Array.isArray(t) && t.length === 2 && Array.isArray(t[0]) && t[0][0] === "as" && t[0][1] === "const";
+    return isConst && (t[1] === "true" || t[1] === "false") ? t[1] : null;
+  }
+  function renderZ3Set({ members, base }) {
+    const list = `{${members.map(m => render(m).html).join(", ")}}`;
+    if (base === "false") return atom(members.length ? list : span("n", "∅"));
+    return members.length ? { html: `${span("n", "𝕌")} ${op("∖")} ${list}`, prec: 6 } : atom(span("n", "𝕌"));
+  }
   const isEmptySet = t => Array.isArray(t) && t[0] === "as" && t[1] === "set.empty";
   // The members of a literal set ({a}, {a, b}, ∅), or null if t is not one
   function literalMembers(t) {
@@ -165,6 +196,13 @@ const Pretty = (() => {
     if (Array.isArray(head)) {
       // ((_ is S) x), ((_ extract i j) x), ...
       if (head[0] === "_" && head[1] === "is") return call(`is-${head[2]}`, args.map(render));
+      // Z3: ((as const (Array T Bool)) false) is the empty set, ((as union (Array T Bool)) A B) is A ∪ B
+      if (head[0] === "as" && head[1] === "const") {
+        const base = z3Base(t);
+        if (base !== null) return renderZ3Set({ members: [], base });
+        return call("const", args.map(render));
+      }
+      if (head[0] === "as" && head[1] === "union" && args.length >= 2) return infix("∪", 6, true, args);
       if (head[0] === "_" && head[1] === "extract") return atom(paren(render(args[0]), ATOM) + `[${head[2]}:${head[3]}]`);
       return call(head.flat(Infinity).join(" "), args.map(render));
     }
@@ -192,8 +230,24 @@ const Pretty = (() => {
       case "bvnot": return { html: op("~") + paren(render(args[0]), ATOM), prec: 8 };
       case "ff.neg": case "bvneg": return { html: op("−") + paren(render(args[0]), ATOM), prec: 8 };
       case "int.pow2": return atom(span("n", "2") + `<sup>${render(args[0]).html}</sup>`);
-      case "select": return atom(paren(render(args[0]), ATOM) + `[${render(args[1]).html}]`);
-      case "store": return atom(paren(render(args[0]), ATOM) + `[${render(args[1]).html} ${op("↦")} ${render(args[2]).html}]`);
+      case "select": {
+        // Z3 writes "x in S" for a set literal S as (select S x)
+        const set = z3Set(args[0]);
+        if (set) return infix("∈", 5, false, [args[1], args[0]]);
+        return atom(paren(render(args[0]), ATOM) + `[${render(args[1]).html}]`);
+      }
+      case "store": {
+        const set = z3Set(t);
+        if (set) return renderZ3Set(set);
+        return atom(paren(render(args[0]), ATOM) + `[${render(args[1]).html} ${op("↦")} ${render(args[2]).html}]`);
+      }
+      case "lambda": case "exists": case "forall": {
+        // (lambda ((p Pair)) body) -> λp. body
+        const vars = Array.isArray(args[0]) ? args[0].map(v => render(Array.isArray(v) ? v[0] : v).html).join(", ") : "";
+        return { html: `${op(BINDERS[head])}${vars}. ${render(args[1]).html}`, prec: 0 };
+      }
+      case "!": return render(args[0]);  // Z3 annotations: (! body :weight 0)
+      case "^": return atom(paren(render(args[0]), ATOM) + `<sup>${render(args[1]).html}</sup>`);
       case "set.singleton": return atom(`{${render(args[0]).html}}`);
       case "set.union": {
         // models print {0, 1} as (set.union (set.singleton 0) (set.singleton 1))

@@ -50,7 +50,13 @@
       </div>
 
       <div class="field">
-        <label for="solver">Solver</label>
+        <label for="engine">Solver</label>
+        <select id="engine"></select>
+        <p id="engine-hint" class="hint"></p>
+      </div>
+
+      <div class="field">
+        <label for="solver">Encoding</label>
         <select id="solver"></select>
         <p id="solver-hint" class="hint"></p>
       </div>
@@ -61,7 +67,7 @@
       </div>
 
       <details class="field options" id="options-field" hidden>
-        <summary><span class="summary-title">cvc5 options</span> <span id="options-active" class="options-active" hidden></span></summary>
+        <summary><span class="summary-title" id="options-title">Solver options</span> <span id="options-active" class="options-active" hidden></span></summary>
         <div class="options-body">
           <p class="hint">Click to toggle. Hover a chip to see what it does.</p>
           <div id="option-chips" class="chips"></div>
@@ -100,7 +106,7 @@
           <div id="status-icon" class="status-icon"></div>
           <div>
             <div id="status-title" class="status-title">Ready</div>
-            <div id="status-sub" class="status-sub">Pick a graph, a solver and K, then press <b>Run solver</b>.</div>
+            <div id="status-sub" class="status-sub">Pick a graph, a solver, an encoding and K, then press <b>Run solver</b>.</div>
           </div>
         </div>
         <div id="timer" class="timer" hidden>0.0 s</div>

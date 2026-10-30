@@ -31,12 +31,12 @@ const vector<string>& element_theory_names();
 
 // Base for the theory-independent encodings: they take their elements from an
 // ElementTheory and never look at what the elements are.
-class ElementGenericColorer : public AbstractGraphColorer {
+class ElementGenericColorer : public Cvc5Colorer {
 protected:
     unique_ptr<ElementTheory> element_theory;
 public:
     ElementGenericColorer(int k, bool model, bool print, unique_ptr<ElementTheory> elements)
-        : AbstractGraphColorer(k, model, print), element_theory(std::move(elements)) {}
+        : Cvc5Colorer(k, model, print), element_theory(std::move(elements)) {}
 protected:
     // The encoding's own part of the logic name ("FS" for sets, "A" for arrays, ...)
     virtual string container_logic() const { return ""; }

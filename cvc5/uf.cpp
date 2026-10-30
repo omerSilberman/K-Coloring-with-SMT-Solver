@@ -8,11 +8,11 @@ namespace {
 // ============================================================================
 // THEORY OF LISTS (Uninterpreted Functions)
 // ============================================================================
-class ListUfColorer : public AbstractGraphColorer {
+class ListUfColorer : public Cvc5Colorer {
 private:
     vector<cvc5::Term> color_constants;
 public:
-    using AbstractGraphColorer::AbstractGraphColorer;
+    using Cvc5Colorer::Cvc5Colorer;
 protected:
     void configure_theory() override { solver.setLogic("QF_UF"); }
     void build_variables_and_bounds() override {
@@ -48,11 +48,11 @@ protected:
 // ============================================================================
 // SIMPLE UNINTERPRETED FUNCTIONS
 // ============================================================================
-class UfColorer : public AbstractGraphColorer {
+class UfColorer : public Cvc5Colorer {
 private:
     vector<cvc5::Term> color_constants;
 public:
-    using AbstractGraphColorer::AbstractGraphColorer;
+    using Cvc5Colorer::Cvc5Colorer;
 protected:
     void configure_theory() override { solver.setLogic("QF_UF"); }
     void build_variables_and_bounds() override {
@@ -91,9 +91,9 @@ protected:
 // splits on merging two classes and reports a conflict when it finds a (K+1)-clique.
 // (Its other modes, --uf-ss=no-minimal/none, only work with quantifier model finding
 // and answer UNKNOWN here, so cvc5's default is used.)
-class UfCardColorer : public AbstractGraphColorer {
+class UfCardColorer : public Cvc5Colorer {
 public:
-    using AbstractGraphColorer::AbstractGraphColorer;
+    using Cvc5Colorer::Cvc5Colorer;
 protected:
     void configure_theory() override { solver.setLogic("QF_UFC"); }  // C: cardinality constraints
     void build_variables_and_bounds() override {
@@ -129,7 +129,7 @@ protected:
 
 }  // namespace
 
-void register_uf(Registry& registry) {
+void register_uf(Cvc5Registry& registry) {
     registry.add("LIST-UF", make<ListUfColorer>());
     registry.add("UF", make<UfColorer>());
     registry.add("UF-CARD", make<UfCardColorer>());

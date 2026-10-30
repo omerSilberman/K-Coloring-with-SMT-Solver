@@ -1,6 +1,6 @@
 // Finite-field encodings: FF-PRIME, FF-POLY, FF-ROOTS, FF-NULL (cvc5 needs to be built with CoCoA)
 #include "colorer.h"
-#include "util.h"
+#include "../common/util.h"
 #include "registry.h"
 
 namespace {
@@ -8,9 +8,9 @@ namespace {
 // ============================================================================
 // FINITE FIELDS (GF(p), p prime - cvc5 needs to be built with --cocoa)
 // ============================================================================
-class FiniteFieldColorer : public AbstractGraphColorer {
+class FiniteFieldColorer : public Cvc5Colorer {
 public:
-    using AbstractGraphColorer::AbstractGraphColorer;
+    using Cvc5Colorer::Cvc5Colorer;
 protected:
     int p = 0;
     cvc5::Sort ff_sort;
@@ -130,7 +130,7 @@ protected:
 
 }  // namespace
 
-void register_ff(Registry& registry) {
+void register_ff(Cvc5Registry& registry) {
     registry.add("FF-PRIME", make<FfPrimeColorer>());
     registry.add("FF-POLY", make<FfPolyColorer>());
     registry.add("FF-ROOTS", make<FfRootsColorer>());

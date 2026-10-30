@@ -8,12 +8,12 @@ namespace {
 // ============================================================================
 // THEORY OF ARRAYS (Global Mapped Index - The "Glorified LIA" Cube)
 // ============================================================================
-class ArrayMappedColorer : public AbstractGraphColorer {
+class ArrayMappedColorer : public Cvc5Colorer {
 private:
     cvc5::Term global_array;
     vector<cvc5::Term> idx_vars;
 public:
-    using AbstractGraphColorer::AbstractGraphColorer;
+    using Cvc5Colorer::Cvc5Colorer;
 protected:
     void configure_theory() override { solver.setLogic("QF_ALIA"); }
     
@@ -47,7 +47,7 @@ protected:
     }
     
     void print_model() override {
-        AbstractGraphColorer::print_model();
+        Cvc5Colorer::print_model();
         for (int i = 1; i <= num_nodes; i++) {
             cout << "idx_" << i << ": " << solver.getValue(idx_vars[i]).toString() << " ";
         }
@@ -101,7 +101,7 @@ protected:
     }
 
     void print_model() override {
-        AbstractGraphColorer::print_model();
+        Cvc5Colorer::print_model();
         for (int i = 1; i <= num_nodes; i++) {
             cout << "i_1_" << i << ": " << solver.getValue(i1_vars[i]).toString() << " ";
         }
@@ -110,7 +110,7 @@ protected:
 
 }  // namespace
 
-void register_arrays(Registry& registry) {
+void register_arrays(Cvc5Registry& registry) {
     registry.add("ARR-MAP", make<ArrayMappedColorer>());
     registry.add_generic("ARR-EXP", "INT", make_generic<ArrayChainColorer>(false));
     registry.add_generic("ARR-INL", "INT", make_generic<ArrayChainColorer>(true));
