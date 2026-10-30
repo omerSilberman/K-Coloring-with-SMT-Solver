@@ -16,8 +16,10 @@ find_package(SmtSwitch REQUIRED COMPONENTS cvc5)
 add_executable(smt_solver smt_solver.cpp)
 target_link_libraries(smt_solver PRIVATE SmtSwitch::smt-switch-cvc5)
 
-# Native cvc5 API version (all theories)
-add_executable(smt_solver_cvc5 smt_solver_cvc5.cpp)
+# Native cvc5 API version (all theories): every .cpp in cvc5/, one file per theory family.
+# CONFIGURE_DEPENDS picks up new files on the next build without re-running cmake by hand.
+file(GLOB CVC5_SOURCES CONFIGURE_DEPENDS "${CMAKE_SOURCE_DIR}/cvc5/*.cpp")
+add_executable(smt_solver_cvc5 ${CVC5_SOURCES})
 target_link_libraries(smt_solver_cvc5 PRIVATE cvc5::cvc5)
 # cvc5::cvc5 names cadical, picpoly and picpolyxx without a path; they sit next to libcvc5.
 target_link_directories(smt_solver_cvc5 PRIVATE "${cvc5_DIR}/../..")

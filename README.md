@@ -20,7 +20,7 @@ The point is to compare how the solver copes with the *same* combinatorial probl
 
 | Path | Description |
 |------|-------------|
-| `smt_solver_cvc5.cpp` | **Main tool.** All 40 encodings, 9 of them theory-independent and runnable over any of 9 element theories, written against the native cvc5 C++ API. Built as `smt_solver_cvc5`. |
+| `cvc5/` | **Main tool.** All 45 encodings, 9 of them theory-independent and runnable over any of 9 element theories, written against the native cvc5 C++ API, one file per theory family (see [Source layout](#source-layout-cvc5)). Built as `smt_solver_cvc5`. |
 | `smt_solver.cpp` | Older version built on [smt-switch](https://github.com/stanford-centaur/smt-switch) with a cvc5 backend; supports a subset of 8 encodings. Built as `smt_solver`. |
 | `smt_solver_dreal.py` | The four trig encodings (`NLRA-SIN`, `NLRA-COS`, `NLRA-SINCOS`, `NLRA-SINPI`) solved by the delta-complete solver [dReal](https://github.com/dreal/dreal4) instead of cvc5. Same command line and output as `smt_solver_cvc5`. See [dReal](#dreal-delta-complete-trig-solver). |
 | `smt_solver_bv.cpp`, `smt_solver_sym.cpp` | Early standalone prototypes (smt-switch). **Not** built by CMake. |
@@ -38,6 +38,42 @@ The point is to compare how the solver copes with the *same* combinatorial probl
 | `test.col` | Tiny triangle graph for smoke tests. |
 | `benchmarks/` | Graph instances (`.col` / `.clq`). Mostly git-ignored; see [Getting benchmark graphs](#getting-benchmark-graphs). |
 | `logs/` | Benchmark logs written by `benchmark.py` (git-ignored). |
+
+
+### Source layout (`cvc5/`)
+
+| File | Contents |
+|---|---|
+| `colorer.h` | `AbstractGraphColorer`, the base class of every encoding: the cvc5 solver, `node_vars`, the `configure_theory` / `build_variables_and_bounds` / `edge_constraint` hooks, and the SAT/UNSAT/MODEL output |
+| `graph.h` | `read_dimacs`. No cvc5 types, so it can be shared once another solver gets its own folder |
+| `elements.h`, `elements.cpp` | The element theories (`INT`, `REAL`, `BV`, ...) and `ElementGenericColorer`, the base of the theory-independent encodings |
+| `registry.h`, `registry.cpp` | Maps names (`BV-AND`, `SET-MEM-UF`, ...) to encodings, and prints the theory lists of `--help` |
+| `main.cpp` | Command line (`--model`, `--print-asserts`, `--opt`) and the list of theory files to register |
+| `util.h` | Small shared helpers (`is_prime`) |
+| `int.cpp` | `LIA`, `IDL`, `INT-MOD`, `INT-POW2` |
+| `bv.cpp` | `BV`, `BV-ZERO`, `BV-AND`, `BV-MOD`, `BV-ONEHOT`, `BV-ORDER`, `BV-ORDER-SHIFT` |
+| `fp.cpp` | `FP` |
+| `real.cpp` | `NLRA`, `NLRA-SQRT`, `NLRA-ROOTS`, `NLRA-SIN`, `NLRA-COS`, `NLRA-SINCOS`, `NLRA-SINPI` |
+| `ff.cpp` | `FF-PRIME`, `FF-POLY`, `FF-ROOTS`, `FF-NULL` |
+| `uf.cpp` | `LIST-UF`, `UF`, `UF-CARD`, `OR-<ELEM>` |
+| `datatypes.cpp` | `LIST-DT`, `PEANO` |
+| `bool.cpp` | `BOOL-DIRECT`, `BOOL-DIRECT-AMO` |
+| `strings.cpp` | `STRING`, `STR-LEX`, `STR-INT`, `STR-REG`, `STR-SUB` |
+| `sets.cpp` | `SET-CUBE`, `SET-MASK`, `SET-MEM`, `SET-CLASSES`, `REL-JOIN` (all `-<ELEM>`) |
+| `arrays.cpp` | `ARR-MAP`, `ARR-EXP-<ELEM>`, `ARR-INL-<ELEM>` |
+| `sep.cpp` | `SEP-<ELEM>` |
+
+Each theory file keeps its encodings in an anonymous namespace and ends with one `register_<theory>(Registry&)` function, for example:
+
+```cpp
+void register_bv(Registry& registry) {
+    registry.add("BV", make<BvColorer>());
+    registry.add("BV-ORDER-SHIFT", make<BvOrderColorer>(true));   // extra constructor arguments
+    ...
+}
+```
+
+**Adding an encoding**: write a class deriving from `AbstractGraphColorer` in the matching theory file and add one `registry.add(...)` line; it then shows up in `--help`, and therefore in the GUI's solver list. **Adding a theory file**: create `cvc5/<theory>.cpp` with a `register_<theory>` function, declare it in `registry.h`, and add it to the list in `main.cpp` (that list sets the order of `--help`; files are registered explicitly rather than through static objects, whose initialization order across files is unspecified). CMake picks up the new file on its own.
 
 ---
 
@@ -419,7 +455,7 @@ Some encodings get all their structure from a "container" theory (sets, arrays, 
 
 `UF`, `STRING` and `LIST-DT` are `OR` with a fixed element theory (`STRING` uses the literals `"A", "B", ...` instead of `"0", "1", ...`). They are kept as their own encodings, since they are the baselines for their theories.
 
-**Element theories.** Everything theory-specific lives in one place: an `ElementTheory` class (in `smt_solver_cvc5.cpp`) returns a sort, n pairwise-distinct elements of it, any side constraints needed to make them distinct, and its part of the logic name.
+**Element theories.** Everything theory-specific lives in one place: an `ElementTheory` class (in `cvc5/elements.h`) returns a sort, n pairwise-distinct elements of it, any side constraints needed to make them distinct, and its part of the logic name.
 
 | `<ELEM>` | Elements `e_0, ..., e_(n-1)` | Logic part |
 |---|---|---|
@@ -435,7 +471,7 @@ Some encodings get all their structure from a "container" theory (sets, arrays, 
 
 **Logic.** The logic is `QF_` + the container's part (`FS` for sets, `A` for arrays, nothing for `OR`) + the element's part: `SET-MEM-BV` runs in `QF_BVFS`, `ARR-EXP-STR` in `QF_AS`, `SET-CUBE` in `QF_LIAFS` (the same logic as `QF_FSLIA`; cvc5 accepts the parts in any order). `REL-JOIN` and `SEP` stay in `ALL`, since tuples and separation logic have no logic name to compose. The choice matters: on `myciel4` with K = 5, `ARR-EXP` takes 0.1 s in `QF_ALIA` and 0.6 s in `ALL`, and `SET-CUBE` goes from 6.3 s to 2.3 s.
 
-**Adding an element theory** means writing one `ElementTheory` subclass and adding one line to `make_element_theory`. Every theory-independent encoding can then use it. **Adding an encoding** means deriving from `ElementGenericColorer` (which provides `make_domain(n)`, `set_of` and `set_of_bits`) and adding one line to `GENERIC_ENCODINGS` and to `make_generic_colorer`.
+**Adding an element theory** means writing one `ElementTheory` subclass in `cvc5/elements.cpp` and adding it to `make_element_theory` and `element_theory_names`. Every theory-independent encoding can then use it. **Adding an encoding** means deriving from `ElementGenericColorer` (in `cvc5/elements.h`, which provides `make_domain(n)`, `set_of` and `set_of_bits`) and registering it with `registry.add_generic("NAME", "DEFAULT-ELEM", make_generic<MyColorer>())`.
 
 **Results.** `myciel3` with K = 3 (UNSAT) / `myciel4` with K = 5 (SAT), in seconds, with a 20 s timeout. Four runs went in parallel, so the times are noisy.
 
@@ -657,7 +693,7 @@ cmake --build build -j
 
 This produces:
 
-- `build/smt_solver_cvc5`: native cvc5, all 40 encodings
+- `build/smt_solver_cvc5`: native cvc5, all 45 encodings (every `.cpp` in `cvc5/`; a new file there is picked up on the next build)
 - `build/smt_solver`: smt-switch, 8 encodings
 
 CMake finds smt-switch and cvc5 through `SMT_SWITCH_DIR`, which defaults to `~/smt-switch`. If your checkout is somewhere else, pass the path:
