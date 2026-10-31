@@ -8,11 +8,11 @@ All encodings share the same skeleton:
 2. A theory-specific **domain constraint** restricting each `node_i` to exactly K possible colors.
 3. The same **edge constraint** for every edge `(u, v)`: `node_u != node_v`.
 
-Nine encodings never look at what their elements are: they get their structure from sets, arrays, a heap or plain equality. They take the element theory as a suffix (`SET-MEM-BV`, `ARR-EXP-STR`, ...); see [Theory-independent encodings](#theory-independent-encodings-encoding-elem).
+Thirteen encodings never look at what their elements are: they get their structure from sets, bags, arrays, a heap or plain equality. They take the element theory as a suffix (`SET-MEM-BV`, `ARR-EXP-STR`, ...); see [Theory-independent encodings](#theory-independent-encodings-encoding-elem).
 
 A few encodings deliberately break this skeleton to try out other ideas. Some replace `!=` with a theory-specific edge constraint (`BV-ONEHOT`, `INT-MOD`, `BV-MOD`, `FF-NULL`, `SEP`). Some have no per-node variable at all (`SET-CLASSES`, `REL-JOIN`). `UF-CARD` has no domain constraint at all: one cardinality constraint on the sort replaces all of them (see [`UF-CARD`](#uf-card-the-sorts-size-is-the-domain)). They are described in [Encodings beyond the skeleton](#encodings-beyond-the-skeleton).
 
-The point is to compare how a solver copes with the *same* combinatorial problem when it is expressed through different theories, and how different solvers cope with the same encoding (see [cvc5 and Z3](#cvc5-and-z3)). Several encodings (notably the array chains) follow Roberto Sebastiani, *"Colors Make Theories Hard"* (IJCAR 2016).
+[ENCODINGS.md](ENCODINGS.md) compares all of them in one table. The point is to compare how a solver copes with the *same* combinatorial problem when it is expressed through different theories, and how different solvers cope with the same encoding (see [cvc5 and Z3](#cvc5-and-z3)). Several encodings (notably the array chains) follow Roberto Sebastiani, *"Colors Make Theories Hard"* (IJCAR 2016).
 
 ---
 
@@ -20,9 +20,10 @@ The point is to compare how a solver copes with the *same* combinatorial problem
 
 | Path | Description |
 |------|-------------|
-| `cvc5/` | **Main tool.** All 45 encodings, 9 of them theory-independent and runnable over any of 9 element theories, written against the native cvc5 C++ API, one file per theory family. Built as `smt_solver_cvc5`. See [Source layout](#source-layout). |
-| `z3/` | The same encodings with the Z3 C++ API, as far as Z3 has the theories (36 of 45; no finite fields, separation logic or trigonometry). Same files, names, command line and output. Built as `smt_solver_z3`. See [cvc5 and Z3](#cvc5-and-z3). |
+| `cvc5/` | **Main tool.** All 49 encodings, 13 of them theory-independent and runnable over any of 9 element theories, written against the native cvc5 C++ API, one file per theory family. Built as `smt_solver_cvc5`. See [Source layout](#source-layout). |
+| `z3/` | The same encodings with the Z3 C++ API, as far as Z3 has the theories (36 of 49; no finite fields, bags, separation logic or trigonometry). Same files, names, command line and output. Built as `smt_solver_z3`. See [cvc5 and Z3](#cvc5-and-z3). |
 | `dreal/` | The four trig encodings (`NLRA-SIN`, `NLRA-COS`, `NLRA-SINCOS`, `NLRA-SINPI`) solved by the delta-complete solver [dReal](https://github.com/dreal/dreal4). Same command line and output, run as `dreal/smt_solver_dreal.py`. See [dReal](#dreal-delta-complete-trig-solver). |
+| `ENCODINGS.md` | **All encodings side by side**: theory, whether each is a k-colorer in the sense of Sebastiani's paper, variables and constraints per node and per edge, formula size in n, m and K, and solved counts with cvc5 and Z3. |
 | `common/` | What every engine shares: the base class and run/print protocol, the name registry, the command line, DIMACS reading (C++ and Python), string helpers. |
 | `smt_solver.cpp` | Older version built on [smt-switch](https://github.com/stanford-centaur/smt-switch) with a cvc5 backend; supports a subset of 8 encodings. Built as `smt_solver`. |
 | `smt_solver_bv.cpp`, `smt_solver_sym.cpp` | Early standalone prototypes (smt-switch). **Not** built by CMake. |
@@ -58,9 +59,9 @@ cvc5/     colorer.h           Cvc5Colorer : GraphColorer, with tm, solver, node_
           registry.h          Cvc5Registry = Registry<Cvc5Colorer, ElementTheory>
           main.cpp            which theory files to register, then run_cli()
           int.cpp bv.cpp fp.cpp real.cpp ff.cpp uf.cpp datatypes.cpp bool.cpp
-          strings.cpp sets.cpp arrays.cpp sep.cpp
+          strings.cpp sets.cpp bags.cpp arrays.cpp sep.cpp
 z3/       the same structure: Z3Colorer, Z3's element theories, the same theory files
-          (no ff.cpp, no sep.cpp; real.cpp without the trig encodings)
+          (no ff.cpp, bags.cpp or sep.cpp; real.cpp without the trig encodings)
 dreal/    smt_solver_dreal.py  the command line
           trig_encodings.py    the four trig queries and the rounding back to exact roots
           runner.py            running the dReal binary and reading its boxes
@@ -129,6 +130,10 @@ The **Name** is the first argument passed to the solver binaries.
 | `SET-MEM-<ELEM>` | SET + any | `QF_<ELEM>FS` | `x in {e_1, ..., e_K}` (set membership). [theory-independent](#theory-independent-encodings-encoding-elem), default `INT`. `SET-MEM-BV` and `SET-MEM-UF` are two of its variants | |
 | `SET-CLASSES-<ELEM>` | SET + any | `QF_<ELEM>FS` | No node variables: K sets `S_1..S_K` of node ids (n distinct elements) that partition all nodes, and no edge has both ends in the same `S_c`. See [`SET-CLASSES`](#set-classes-color-classes-instead-of-colors), default `INT` | |
 | `REL-JOIN-<ELEM>` | SET + relations + any | `ALL` | No node variables: one relation `C` between nodes and colors, and a single constraint `(E join C) n C = {}` for all edges at once. See [`REL-JOIN`](#rel-join-the-whole-graph-in-one-formula), default `INT` | |
+| `BAG-SUB-<ELEM>` | BAG + any | `ALL` | `x ⊑ B` (sub-bag) for `B = {e₁:p₁-1, ..., e_L:p_L-1}`, the pᵢ the prime factors of K: exactly K sub-bags, nothing to exclude. See [`Bags`](#bags-counting-instead-of-membership), default `INT` | |
+| `BAG-UNARY-<ELEM>` | BAG + any | `ALL` | `x ⊑ {e:K-1}`: e occurs 0..K-1 times. See [`Bags`](#bags-counting-instead-of-membership), default `INT` | |
+| `BAG-CARD-<ELEM>` | BAG + any | `ALL` | No domain per node: free values, `u != v`, and one constraint `bag.card(bag.setof(⊎ {x_v:1})) <= K`. See [`Bags`](#bags-counting-instead-of-membership), default `UF` | |
+| `BAG-NEIGHBORS-<ELEM>` | BAG + any | `ALL` | `x_v in {e_1..e_K}`, and one constraint per node instead of per edge: `bag.count(x_v, ⊎_{u ~ v} {x_u:1}) = 0`. See [`Bags`](#bags-counting-instead-of-membership), default `INT` | |
 | `SEP-<ELEM>` | Separation logic + any | `ALL` | A heap of exactly K cells `c_1 \|-> e_1 * ... * c_K \|-> e_1`; each node points into it, and edges are `(u \|-> e_1) * (v \|-> e_1) * true` instead of `u != v`. See [`SEP`](#sep-colors-are-heap-cells), default `UF` | |
 | `ARR-EXP-<ELEM>` | ARRAY + any | `QF_A<ELEM>` | Sebastiani array chain with explicit array variables: `A_{j+1} = store(A_j, i_j, e_j)` for `j = 1..K` (`i_1` free, `i_j = e_j` otherwise), color `x = A_{K+1}[i_1]`. [theory-independent](#theory-independent-encodings-encoding-elem), default `INT` | |
 | `ARR-INL-<ELEM>` | ARRAY + any | `QF_A<ELEM>` | Same chain as `ARR-EXP`, but built as one nested `store(store(...))` term with no intermediate variables. Default `INT` | |
@@ -507,6 +512,62 @@ The element theory hardly matters when the elements are only compared for equali
 
 So the domain is "be a subset of U", and when K is not a power of 2, the extra `E = 2^L - K` subsets are removed with sets the node must *not* be a subset of: one `A_b` for each 1-bit `b` of E, built from the same maximal element `a_b` as in [`BV-AND`](#bv-and-excluding-values-with-and-masks). For K = 11 (L = 4, E = 5 = `0101`): `a_2 = 0011` and `a_0 = 0100`, so each node gets `x subset {e_0, e_1, e_2, e_3}`, `not (x subset {e_0, e_1})` and `not (x subset {e_2})`. Compared to `SET-CUBE`, which forbids each of the E extra subsets with its own `x != S`, this needs only `popcount(E) <= L - 1` literals per node. Edges are the usual `u != v`, as set equality.
 
+### Bags: counting instead of membership
+
+A **bag** (multiset) is a set where an element can occur several times; cvc5's theory of finite bags has `bag.count(e, B)` (how often e is in B), `bag.subbag` (`⊑`, every count at most the other's), `bag.union_disjoint` (`⊎`, counts add up), `bag.setof` (one copy of each element) and `bag.card` (the total count). What bags add over sets is **counting**, and the four encodings in `cvc5/bags.cpp` use it in three different ways. All of them are theory-independent (`-<ELEM>`). cvc5 has no logic name for bags (its parser rejects `FB`), so they run in `ALL`, and Z3 has no bags at all, so they are cvc5-only.
+
+**`BAG-SUB` and `BAG-UNARY`: exactly K sub-bags, nothing to exclude.** `SET-CUBE` and `SET-MASK` make a node a subset of L elements, which gives `2^L` values, so for K not a power of 2 the extra subsets have to be excluded. A bag `B = {e₁:m₁, ..., e_L:m_L}` (element eᵢ with count mᵢ) has `(m₁+1)·(m₂+1)···(m_L+1)` sub-bags, since each eᵢ can occur 0 to mᵢ times. Every K is such a product, so
+
+```
+x ⊑ B
+```
+
+is the whole domain constraint: exactly K values, with no exclusions for any K. It is a **mixed-radix number**: the count of eᵢ is a digit in base `mᵢ + 1`. The factorization is a choice, and the two encodings take the two extremes:
+
+| K | `BAG-SUB` (prime factors, mᵢ = pᵢ - 1) | `BAG-UNARY` (one element, m = K - 1) |
+|---|---|---|
+| 4 = 2·2 | `{e₁:1, e₂:1}` (the 4 subsets of a 2-set: `SET-CUBE`) | `{e₁:3}` |
+| 6 = 2·3 | `{e₁:1, e₂:2}` | `{e₁:5}` |
+| 7 (prime) | `{e₁:6}` | `{e₁:6}` |
+| 12 = 2·2·3 | `{e₁:1, e₂:1, e₃:2}` | `{e₁:11}` |
+
+`BAG-SUB` uses as many elements as K's factorization allows, as close to bits as possible; when K is a power of 2 every count is 0 or 1 and it is `SET-CUBE` written with bags. `BAG-UNARY` is a single counter, integer arithmetic in disguise. With K = 1 both are `x ⊑ ∅`, whose only sub-bag is the empty bag. Models print bags as `(bag 0 2)` (0 twice), shown in the GUI as `⦃0²⦄`.
+
+**`BAG-CARD`: count the distinct colors.** The bag counterpart of [`UF-CARD`](#uf-card-the-sorts-size-is-the-domain): no domain constraint per node, edges `u != v`, and one constraint that at most K distinct values occur:
+
+```
+bag.card(bag.setof({x_1:1} ⊎ {x_2:1} ⊎ ... ⊎ {x_n:1})) <= K
+```
+
+`UF-CARD` states "at most K colors" as a property of the sort, for cvc5's cardinality solver; `BAG-CARD` states it as arithmetic over a term, for the bag solver. The element theory only supplies the sort (it must have at least K values, so `BOOL` fails for K > 2). The default element theory is `UF`, as in `UF-CARD`.
+
+**`BAG-NEIGHBORS`: one constraint per node instead of per edge.** Every other encoding says "neighbours differ" once per edge. Here the colors of v's neighbours form a bag, and v's own color occurs in it zero times:
+
+```
+x_v in {e_1, ..., e_K}           bag.count(x_v, ⊎_{u ~ v} {x_u:1}) = 0
+```
+
+The meaning is the same, but each constraint sees a whole neighbourhood. Replacing `= 0` by `<= d` would give **defective coloring** (each node may have up to d neighbours of its own color), which no other encoding here can express this directly; it is not implemented. A self-loop makes the node its own neighbour, so the constraint fails, which is the right answer.
+
+**Correctness.** All four encodings with all nine element theories (36 combinations) on the complete graphs `K_2` .. `K_6` (`K_K` SAT, `K_(K+1)` UNSAT) and `myciel3` (K = 4 SAT, K = 3 UNSAT), every SAT model checked against the edges. No wrong answer anywhere. `BAG-SUB`, `BAG-UNARY` and `BAG-NEIGHBORS` pass every test with every element theory (`BAG-NEIGHBORS-BOOL` stops with an error from K = 3: it needs K elements). `BAG-CARD` finds every SAT coloring but times out (15 s) on the UNSAT cases, even a triangle with K = 2, for every element theory except `DT`, where it passes everything: an enumeration datatype with K constructors has only K values, so the sort itself does the counting. The bag solver does not refute "more than K distinct values" by itself. `BAG-SUB` and `BAG-UNARY` were also checked on `K_K` / `K_(K+1)` for K = 6..12; every SAT answer was right, and the UNSAT side times out from K = 7 (60 s), as it does for `SET-CUBE`.
+
+**Results** (cvc5, 30 s timeout, 8 runs in parallel, every SAT model checked; in seconds, T/O = timeout):
+
+| Encoding | `myciel4` K=5 (SAT) | `myciel4` K=4 (UNSAT) | `queen5_5` K=5 (SAT) | `queen5_5` K=4 (UNSAT) | `DSJC125.1` K=5 (SAT) | `1-FullIns_4` K=4 (UNSAT) |
+|---|---|---|---|---|---|---|
+| `BAG-SUB` | T/O | T/O | T/O | T/O | T/O | T/O |
+| `BAG-UNARY` | T/O | T/O | T/O | 24.99 | T/O | T/O |
+| `BAG-NEIGHBORS` | 7.30 | T/O | T/O | T/O | T/O | T/O |
+| `BAG-CARD` | T/O | T/O | T/O | T/O | T/O | T/O |
+| `BAG-CARD-DT` | T/O | 0.63 | T/O | 0.02 | T/O | 17.49 |
+| `SET-CUBE` | 15.23 | T/O | T/O | 0.79 | T/O | T/O |
+| `SET-MASK` | 21.66 | T/O | T/O | 0.79 | T/O | T/O |
+| `SET-MEM` | 0.07 | 0.69 | 0.11 | 0.08 | 8.84 | 2.41 |
+| `UF-CARD` | 0.10 | 0.09 | 0.02 | 0.02 | 7.54 | 0.66 |
+| `BV` | 0.02 | 0.05 | 0.02 | 0.02 | 0.44 | 0.06 |
+
+**The bag solver is the bottleneck.** The bag encodings are correct, but cvc5's bag theory is far slower than its set theory on these problems: `BAG-SUB` (same idea as `SET-CUBE`, without exclusions) solves none of the six where `SET-CUBE` solves two, and `BAG-NEIGHBORS` needs 7.3 s for the `myciel4` coloring that `SET-MEM`, with the same domain and plain `u != v` edges, finds in 0.07 s. The one result that stands out is `BAG-CARD-DT` on UNSAT: with a sort of exactly K values, it proves `myciel4` and `queen5_5` UNSAT about as fast as `SET-MEM`, but again because the sort is finite, not because of the bag counting (`BAG-CARD` with an unbounded sort proves nothing). The ideas are sound, and the encodings are short; on this cvc5 build, the bag solver is just not competitive for coloring.
+
 ### Encodings beyond the skeleton
 
 The encodings in this section were added to explore unusual ideas rather than to be fast: different domains, edge constraints that are not `!=`, and encodings with no per-node variable at all. Two virtual hooks in the engine base classes (`Cvc5Colorer`, `Z3Colorer`) make this possible: `edge_constraint(u, v)` receives the two nodes' terms and defaults to `u != v`, and `edge_constraint_between(u, v)` receives the node *ids*, for encodings where a node's color is not one term. `edge_constraint_between` may return a null term to assert nothing for that edge.
@@ -709,7 +770,7 @@ cmake --build build -j
 
 This produces:
 
-- `build/smt_solver_cvc5`: native cvc5, all 45 encodings (every `.cpp` in `cvc5/`; a new file there is picked up on the next build)
+- `build/smt_solver_cvc5`: native cvc5, all 49 encodings (every `.cpp` in `cvc5/`; a new file there is picked up on the next build)
 - `build/smt_solver_z3`: native Z3, 36 encodings (every `.cpp` in `z3/`), if Z3 was found (`-DZ3_ROOT=/path/to/z3-release` to point CMake at it)
 - `build/smt_solver`: smt-switch, 8 encodings
 
@@ -855,13 +916,13 @@ Two names are handled specially: `OR-Tools` runs Google OR-Tools CP-SAT in-proce
 
 `smt_solver_z3` runs the same encodings with [Z3](https://github.com/Z3Prover/z3) 5.1.0 through its C++ API: the same names, command line, output and theory files (`z3/` mirrors `cvc5/`, see [Source layout](#source-layout)). The formulas are the same wherever Z3 has the theory, so the two solvers can be compared encoding by encoding, and the GUI switches between them with one dropdown.
 
-**What Z3 has.** 36 of the 45 encodings, and 8 of the 9 element theories:
+**What Z3 has.** 36 of the 49 encodings, and 8 of the 9 element theories:
 
 | | |
 |---|---|
 | Same formula as cvc5 | `LIA`, `IDL`, `INT-MOD`, all `BV-*`, `FP`, `NLRA`, `NLRA-SQRT`, `NLRA-ROOTS`, `LIST-UF`, `UF`, `LIST-DT`, `PEANO`, `BOOL-DIRECT(-AMO)`, all `STR*`, `ARR-MAP`, and `OR`, `SET-CUBE`, `SET-MASK`, `SET-MEM`, `SET-CLASSES`, `ARR-EXP`, `ARR-INL` over every element theory but `FF`. Z3's sets are arrays to Bool (`subset`, `store(const(false), e, true)`, ...), which is how Z3 writes the same set operations |
 | Same meaning, different formula | `UF-CARD`: Z3 has no cardinality constraint (`fmf.card`), so "at most K elements" is the quantified axiom `∀x. x = d₁ ∨ … ∨ x = d_K` with K constants, solved by model-based quantifier instantiation. `INT-POW2`: no `int.pow2`, so `2^e` with Z3's general power operator. `REL-JOIN`: no relations, so relations are sets of tuple datatypes, and `join`/`product` are lambdas; the joined column ranges over the finite node or color set, written as a disjunction (see below). `BOOL-DIRECT`: Z3 has no `QF_SAT`, so it runs in `QF_FD`, Z3's finite-domain (SAT-based) logic |
-| Not in Z3 | `FF-*` and the `FF` element theory (no finite fields), `SEP` (no separation logic), and the trig encodings `NLRA-SIN`, `-COS`, `-SINCOS`, `-SINPI`: Z3 accepts `sin` but answers `unknown` even with a root pinned to [3, 3.2], and its C++ API has no sine. dReal covers those |
+| Not in Z3 | `FF-*` and the `FF` element theory (no finite fields), the `BAG-*` encodings (no bags), `SEP` (no separation logic), and the trig encodings `NLRA-SIN`, `-COS`, `-SINCOS`, `-SINPI`: Z3 accepts `sin` but answers `unknown` even with a root pinned to [3, 3.2], and its C++ API has no sine. dReal covers those |
 
 **Correctness.** Every Z3 encoding (84 names: generic ones with every element theory but `BOOL`, which has only 2 elements) was run on the complete graphs `K_2` .. `K_6` (`K_K` SAT, `K_(K+1)` UNSAT) and on `myciel3` (K = 4 SAT, K = 3 UNSAT), every SAT model checked against the edges. All answers were right after one fix. The first `REL-JOIN` translation used `∃v` inside the lambdas, and on `K_4` with `BV` elements Z3 answered SAT with a model in which two adjacent nodes had the same color: the model violates `(E join C) ∩ C = ∅`, but model-based quantifier instantiation accepted it (Z3's own `model_validate` does not catch it either, since it cannot evaluate the quantified assertions). The relations are finite, so `∃v` is the same as a disjunction over the nodes, and with that quantifier-free version every test passes, faster. The GUI checks every model against the edges for exactly this kind of problem.
 

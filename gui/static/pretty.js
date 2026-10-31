@@ -135,9 +135,30 @@ const Pretty = (() => {
     "bvshl": ["≪", 7], "bvlshr": ["≫", 7], "wand": ["−∗", 2],
     // Z3's set operations (its sets are arrays to Bool)
     "subset": ["⊆", 5], "intersection": ["∩", 7, true], "setminus": ["∖", 6],
+    // bags (multisets): ⊎ adds counts, ∪ / ∩ take the larger / smaller count
+    "bag.subbag": ["⊑", 5], "bag.union_disjoint": ["⊎", 6, true], "bag.union_max": ["∪", 6, true],
+    "bag.inter_min": ["∩", 7, true], "bag.difference_subtract": ["∖", 6], "bag.member": ["∈", 5],
   };
   const NEGATED = { "=": "≠", "fp.eq": "≠", "set.member": "∉", "set.subset": "⊈", "str.in_re": "∉", "subset": "⊈" };
   const BINDERS = { lambda: "λ", exists: "∃", forall: "∀" };
+
+  // A literal bag: (bag e n), ⊎ of literal bags, or the empty bag, as [[element, count], ...]
+  function bagLiteral(t) {
+    if (Array.isArray(t) && t[0] === "as" && t[1] === "bag.empty") return [];
+    if (!Array.isArray(t)) return null;
+    if (t[0] === "bag" && t.length === 3 && /^\d+$/.test(t[2])) return [[t[1], t[2]]];
+    if (t[0] === "bag.union_disjoint") {
+      const parts = t.slice(1).map(bagLiteral);
+      return parts.every(p => p) ? parts.flat() : null;
+    }
+    return null;
+  }
+  // ⦃0², 1⦄: each element with its count as an exponent (no exponent for 1)
+  function renderBag(entries) {
+    if (!entries.length) return atom(span("n", "∅"));
+    const items = entries.map(([e, n]) => render(e).html + (n === "1" ? "" : `<sup>${n}</sup>`));
+    return atom(`⦃${items.join(", ")}⦄`);
+  }
 
   // A Z3 set literal: store(...store(const(base), e, v)...), all v the opposite of base.
   // {members, base}: base "false" is the set {members}, base "true" all elements but them.
@@ -212,7 +233,7 @@ const Pretty = (() => {
         if (args[0] === "fmf.card") return { html: `|${render(args[1]).html}| ${op("≤")} ${render(args[2]).html}`, prec: 5 };
         return atom(span("kw", esc(args.flat(Infinity).join(" "))));
       case "as":
-        if (args[0] === "set.empty") return atom(span("n", "∅"));
+        if (args[0] === "set.empty" || args[0] === "bag.empty") return atom(span("n", "∅"));
         return render(args[0]);
       case "let": return render(expandLets(t));
       case "fp": if (args.length === 3) return floatValue(...args); break;
@@ -247,6 +268,15 @@ const Pretty = (() => {
         return { html: `${op(BINDERS[head])}${vars}. ${render(args[1]).html}`, prec: 0 };
       }
       case "!": return render(args[0]);  // Z3 annotations: (! body :weight 0)
+      case "bag": case "bag.union_disjoint": {
+        const entries = bagLiteral(t);
+        if (entries) return renderBag(entries);
+        if (head === "bag") return atom(paren(render(args[0]), ATOM) + `<sup>${render(args[1]).html}</sup>`);
+        break;
+      }
+      case "bag.count": return call("count", args.map(render));
+      case "bag.card": return atom(`|${render(args[0]).html}|`);
+      case "bag.setof": return call("setof", args.map(render));
       case "^": return atom(paren(render(args[0]), ATOM) + `<sup>${render(args[1]).html}</sup>`);
       case "set.singleton": return atom(`{${render(args[0]).html}}`);
       case "set.union": {

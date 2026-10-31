@@ -41,6 +41,12 @@ const HINTS = {
 };
 const GENERIC_HINT = "Theory-independent: the same encoding runs over any element theory.";
 const GENERIC_HINTS = {
+  cvc5: {
+    "BAG-SUB": "A node is a sub-bag of {e₁:p₁−1, …} for the prime factors pᵢ of K: exactly K sub-bags, nothing to exclude (a mixed-radix number).",
+    "BAG-UNARY": "A node is a sub-bag of {e:K−1}: e occurs 0..K−1 times, a unary count.",
+    "BAG-CARD": "No domain per node: free values, u ≠ v, and |setof(⊎ ⦃x_v⦄)| ≤ K distinct values. The bag counterpart of UF-CARD.",
+    "BAG-NEIGHBORS": "Neighbours differ, once per node: count(x_v, ⊎ neighbours' colors) = 0 instead of one u ≠ v per edge.",
+  },
   z3: { "REL-JOIN": "Z3 has no relations: they are sets of tuples, and join/product are written as lambdas over the finite set of nodes and colors." },
 };
 

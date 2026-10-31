@@ -18,5 +18,6 @@ void register_datatypes(Cvc5Registry& registry);  // datatypes.cpp
 void register_bool(Cvc5Registry& registry);       // bool.cpp
 void register_strings(Cvc5Registry& registry);    // strings.cpp
 void register_sets(Cvc5Registry& registry);       // sets.cpp
+void register_bags(Cvc5Registry& registry);       // bags.cpp
 void register_arrays(Cvc5Registry& registry);     // arrays.cpp
 void register_sep(Cvc5Registry& registry);        // sep.cpp

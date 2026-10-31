@@ -8,7 +8,7 @@
 using Z3Registry = Registry<Z3Colorer, ElementTheory>;
 
 // One per theory file, in --help order (the same files as cvc5/, minus the theories
-// Z3 does not have: finite fields, separation logic, trigonometry)
+// Z3 does not have: finite fields, bags, separation logic, trigonometry)
 void register_int(Z3Registry& registry);        // int.cpp
 void register_bv(Z3Registry& registry);         // bv.cpp
 void register_fp(Z3Registry& registry);         // fp.cpp

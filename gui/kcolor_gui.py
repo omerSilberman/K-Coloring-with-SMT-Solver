@@ -39,7 +39,7 @@ ENGINES = {
     "cvc5": {"label": "cvc5", "command": [os.path.join(ROOT, "build", "smt_solver_cvc5")], "options": True,
              "about": "cvc5, through its C++ API: every encoding"},
     "z3": {"label": "Z3", "command": [os.path.join(ROOT, "build", "smt_solver_z3")], "options": True,
-           "about": "Z3, through its C++ API: the same encodings, minus the theories Z3 lacks (finite fields, separation logic, trigonometry)"},
+           "about": "Z3, through its C++ API: the same encodings, minus the theories Z3 lacks (finite fields, bags, separation logic, trigonometry)"},
     "dreal": {"label": "dReal", "command": [sys.executable, os.path.join(ROOT, "dreal", "smt_solver_dreal.py")],
               "options": False, "about": "dReal, a delta-complete solver for the trig encodings: finds the SAT models cvc5 cannot"},
 }
