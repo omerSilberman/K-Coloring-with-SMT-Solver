@@ -21,6 +21,11 @@ private:
 public:
     BoolDirectColorer(int k, bool model, bool print, bool at_most_one)
         : Cvc5Colorer(k, model, print), at_most_one(at_most_one) {}
+public:
+    bool supports_colors() const override { return true; }
+    // color j is the Boolean c_node_j; the model prints colors as 1..K
+    void fix_color(int node, int color) override { solver.assertFormula(has_color[node][color]); }
+    string color_value(int color) override { return to_string(color + 1); }
 protected:
     void configure_theory() override { solver.setLogic("QF_SAT"); }
     void build_variables_and_bounds() override {

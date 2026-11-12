@@ -53,7 +53,11 @@ common/   graph.h, graph.py   DIMACS reading (C++ for the engines, Python for dR
           colorer.h           GraphColorer: graph, K, flags, and the run/print protocol
           registry.h          Registry<Colorer, Elements>: encodings by name, and --help
           cli.h               run_cli(): the command line every binary shares
-          strings.h, util.h   int_to_alpha, the STR-SUB word table, is_prime
+          strings.h, util.h   int_to_alpha, the STR-SUB word tables, is_prime, prime_factors
+          json.h              writing JSON (--list-json, STRATEGY-JSON lines)
+          strategies/         graph strategies run before the solver, for every engine
+                              (see Strategies): strategy.h, pipeline.cpp, dsatur.cpp,
+                              dominated.cpp, peel.cpp, clique.cpp
 cvc5/     colorer.h           Cvc5Colorer : GraphColorer, with tm, solver, node_vars
           elements.h/.cpp     the element theories and ElementGenericColorer
           registry.h          Cvc5Registry = Registry<Cvc5Colorer, ElementTheory>
@@ -799,6 +803,8 @@ Both binaries share the command line and the output format (`common/cli.h`); `--
 |--------|--------|
 | `--model` | If SAT, print the coloring (`MODEL: node_1: ... node_2: ...`). Array encodings also print their index variables (`i_1_*` or `idx_*`). |
 | `--print-asserts` | Dump every asserted formula, in SMT-LIB-like syntax, before solving. |
+| `--strategy NAME[:PARAMS]` | Run a strategy before the solver: `dsatur`, `dominated`, `peel`, `clique` (`clique:exact` for an exact search). Repeatable; they always run in that order. See [Strategies](#strategies). |
+| `--list-json` | Print the encodings (with whether strategies can fix colors in them) and the strategies as JSON, and exit. The GUI reads this. |
 | `--opt NAME=VALUE` | Set a solver option: for cvc5 e.g. `--opt bitblast=eager`, for Z3 a global parameter such as `--opt sat.euf=true` or `--opt smt.random_seed=7`. Repeatable; `--opt NAME` alone means `NAME=true`. Options are set before the encoding configures the solver, so options an encoding requires (such as `SEP`'s non-incremental mode) still win. See [cvc5 options for `BV`](#cvc5-options-for-bv). |
 | `--help`, `-h` | Show usage and the list of theories. |
 
@@ -855,6 +861,7 @@ e 1 3
 - **Solver**: cvc5, Z3 or dReal. A solver that is not built shows as not available.
 - **Encoding**: every encoding that solver's `--help` lists, grouped by theory, so the list only shows what that solver can run. The theory-independent encodings get an element-theory picker. Switching solvers keeps the encoding when the other solver has it too (`BV` in cvc5 → `BV` in Z3), so one encoding is easy to compare across solvers.
 - **Solver options** (collapsed by default): clickable chips for the options worth trying, shown only where they apply (for cvc5, eager bit-blasting only for the pure bit-vector encodings; for Z3, the new SAT core `sat.euf`, not for strings). Each chip's tooltip says what it did in the benchmarks. Any other option can be typed as `NAME=VALUE`; a typed option overrides a chip with the same name. dReal takes no options.
+- **Strategies** (collapsed by default, cvc5 and Z3): toggle chips for `dsatur`, `dominated`, `peel` and `clique` (with an "exact clique search" checkbox). A strategy that needs explicit colors is disabled for encodings without them (for `clique`, only its UNSAT check runs there; the chip is dashed). After a run, a **Strategies** card lists what each one did and how long it took; an answer found without the solver says so in the status; in the drawing, nodes whose color a strategy fixed have a thick outline and removed nodes a dashed one (with a legend), and the tooltip says which strategy touched them; the assertions a strategy added are tagged in the formula list.
 - **Formulas**: the assertions from `--print-asserts`, shown as math: `node₁ ∈ {0, 1, 2}`, `A₂,₁ = A₁,₁[i₁,₁ ↦ 0]`, `(E ⋈ C) ∩ C = ∅`, `c₁ ↦ E0 ∗ c₂ ↦ E0`, with `let` bindings inlined. Z3's own notation is translated too: its sets are arrays (`store(const(false), …)` becomes `{…}`), and `lambda`/`exists`/`forall` become `λ`/`∃`/`∀`. The **SMT-LIB** toggle shows the raw text, and the filter searches it. Up to 5,000 formulas are sent to the page; the rest are only counted.
 - **While solving**: a spinner, a running timer and the phase (building the formula, solving). **Stop** kills the solver process. An optional time limit does the same automatically.
 - **Result**: SAT, UNSAT, UNKNOWN, time limit or error (with the solver's message). For SAT: a legend of the colors used, with counts. The server checks the coloring against every edge ("Valid coloring", or the conflicting edges in red). Graphs up to 300 nodes are drawn with a force-directed layout, colored by the model; hovering a node shows its value, and clicking a color in the legend highlights its nodes. **Show the color of every node** lists all nodes and can be filtered. The **Node numbers / Assigned values** toggle labels the drawing and that list either by node number (and color number) or by the value the solver assigned, in a short form (`A` for `"A"`, `{E0, E1}`, `01₂`, `π` for dReal's `1*pi`).
@@ -905,12 +912,58 @@ A `.conf` file is a Python list literal of solver entries. Comment out a line wi
 ```
 
 - `name`: column header in the results table
-- `bin_path`: `[binary, THEORY]`; the script appends `<graph> <K> [--model]`. cvc5 options go in the list too: `["./build/smt_solver_cvc5", "BV", "--opt", "bv-solver=bitblast-internal"]`
+- `bin_path`: `[binary, THEORY]`; the script appends `<graph> <K> [--model]`. cvc5 options and strategies go in the list too: `["./build/smt_solver_cvc5", "BV", "--opt", "bv-solver=bitblast-internal"]`, `["./build/smt_solver_cvc5", "BV", "--strategy", "clique"]`
 - `model_prefix`: label used when printing models
 
 Two names are handled specially: `OR-Tools` runs Google OR-Tools CP-SAT in-process, and `GC-CDCL` calls an external `gc` binary with `--bound K`.
 
 ---
+
+## Strategies
+
+A **strategy** reasons about the graph before the solver runs. It is written once, in `common/strategies/`, and works with every engine and every encoding. A strategy never builds a term: it changes a **plan** (the graph to encode, colors some nodes must get, or an answer found without the solver), and the engine turns the plan into the formula. Turn them on with `--strategy NAME` (repeatable) or in the GUI.
+
+| Strategy | Kind | What it does | Needs explicit colors |
+|---|---|---|---|
+| `dsatur` | pre-check | Colors the graph with Brélaz's DSATUR heuristic. If that needs at most K colors, the answer is SAT and the solver does not run (the model then numbers the colors 1..K). It cannot prove UNSAT. | no |
+| `dominated` | reduction | Removes every node u that has a non-adjacent node v with N(u) ⊆ N(v): in any coloring, u can take v's color. Repeats until no node is dominated (2 s budget, `dominated:ms=N`). | no |
+| `peel` | reduction | Repeatedly removes nodes with fewer than K neighbours (what is left is the K-core): such a node can always be colored last. | yes, for the repair |
+| `clique` | hint | Finds a large clique, greedily from the 64 highest-degree nodes (`clique:exact`: Bron-Kerbosch with pivoting, 2 s limit, `clique:exact,ms=N`). More than K nodes: UNSAT without the solver. Otherwise its nodes are fixed to colors 1..q. Any coloring can be renamed so the clique gets exactly these colors, so this keeps the answer and removes most of the K! renamings of each coloring from the search (symmetry breaking). | yes, for fixing; the UNSAT check works for every encoding |
+
+They always run in this order (pre-checks, reductions, hints), whatever order they are given in. Before any of them, a graph with a **self-loop** is answered UNSAT (no node can differ from itself), so that a reduction never removes the evidence.
+
+**Repairing the model.** The solver colors the reduced graph. The removed nodes get their colors back afterwards, in reverse order of removal: a dominated node copies its dominator's color; a peeled node takes the first color that none of its neighbours (at the time it was removed) has. The model is always printed for the **original** graph, so `benchmark.py` and the GUI's validity check see a complete coloring. Auxiliary model values (`i_1_*`, `idx_*`, `word`) are kept only when no node was removed, since they refer to the reduced numbering.
+
+**What the encodings provide.** Fixing a node's color (and repairing peeled nodes) needs the encoding's K colors as terms, which 41 of the 49 cvc5 encodings (33 of 36 in Z3) provide: the K values for numbers, bit-vectors and strings, the elements for the theory-independent encodings, the K subsets or sub-bags for the set and bag encodings, and so on. Encodings whose colors are not terms of the node's sort fix the color their own way (`BOOL-DIRECT`: the Boolean `c_v_j`; `SET-CLASSES`: `v ∈ S_j`; `REL-JOIN`: `(v, j) ∈ C`; `IDL`, `INT-MOD`, `BV-MOD`: on `x − zero` or the residue). `UF-CARD`, `BAG-CARD`, `NLRA-SQRT`, `NLRA-ROOTS` and the trig encodings have no such colors: `clique` only does its UNSAT check there, and `peel` is skipped. `--list-json` says which is which. The color terms are only built when a strategy runs, so without `--strategy` the formula, and the solver's search, are exactly what they were.
+
+**Output.** Each strategy prints a line `STRATEGY name: what it did (time)` and a machine-readable `STRATEGY-JSON {...}` line (the nodes it removed or fixed, the clique) before the formulas; the assertions it added follow a `; strategy: clique` comment in `--print-asserts`.
+
+```
+$ ./build/smt_solver_cvc5 BV benchmarks/DIMACS/david.col 10 --strategy clique
+STRATEGY clique: clique of 11 (greedy; nodes 2 4 19 32 34 46 55 66 74 83 87): more than K = 10 nodes that all need different colors, so no K-coloring exists (no solver needed) (0.125 ms)
+UNSAT
+```
+
+**Correctness.** Every encoding of both engines (140 cvc5 names and 84 Z3 names, every element theory) was run with `dominated`, `peel` and `clique` on four instances chosen to exercise each path: `myciel3` with K = 4 (peel removes every node, so the whole model is repaired), `myciel3` with K = 3 (UNSAT with fixed colors), `myciel4` with K = 5 (partial peel plus fixed colors) and `queen5_5` with K = 5 (a 5-clique fixed). Every SAT model was checked against the original graph. No wrong answer and no invalid model; what did not finish were the slow encodings timing out (20 s), as without strategies. Without `--strategy`, all 818 recorded outputs of the two engines (every encoding on small graphs, formulas and models included) are byte-for-byte the same as before strategies existed.
+
+**Results.** Every graph with a proven χ (`optimal_k_values.json`, without `homer`), at K = χ (SAT) and K = χ − 1 (UNSAT), cvc5, 30 s timeout, 8 runs in parallel, every model checked:
+
+| Encoding | Strategies | SAT solved (of 56) | SAT time | UNSAT solved (of 56) | UNSAT time | Answered without the solver |
+|---|---|---|---|---|---|---|
+| `BV` | none | 55 | 144 s | 38 | 609 s | 0 |
+| `BV` | `clique` | **56** | 128 s | **56** | 60 s | 28 UNSAT |
+| `BV` | `dominated`, `peel`, `clique` | **56** | 102 s | **56** | **15 s** | 28 UNSAT |
+| `BV` | all four | **56** | **93 s** | **56** | **15 s** | 40 SAT, 28 UNSAT |
+| `BOOL-DIRECT` | none | 56 | 110 s | 31 | 766 s | 0 |
+| `BOOL-DIRECT` | `dominated`, `peel`, `clique` | 56 | **37 s** | **56** | **27 s** | 28 UNSAT |
+
+(Times count timeouts as 30 s.) With strategies, `BV` solves all 112 instances, where it solved 93 without them.
+
+- **The clique bound settles half the UNSAT instances by itself.** On 28 of the 56 graphs, K = χ − 1 is refuted by a clique of χ nodes, which the greedy search finds in well under a millisecond (`fpsol2.i.2`, `inithx.i.1`, `le450_15a`, `miles1500`, `mulsol.i.1`, `qwhdec`, ... all timed out without strategies).
+- **Fixing the clique breaks the symmetry where the bound does not settle it.** `5-FullIns_4` (K = 8, χ = 9, ω = 7) timed out without strategies and takes 10.4 s with `clique`; `queen6_6` (K = 6) goes from 6.84 s to 0.06 s; `myciel5` (K = 5, triangle-free, so the clique is just an edge) from a timeout to 2.2 s. This is the effect `UF-CARD` gets from having anonymous colors ([`UF-CARD`](#uf-card-the-sorts-size-is-the-domain)), now available to every encoding.
+- **The reductions remove the easy part of the graph.** On the `FullIns` family, `dominated` and `peel` shrink the graph a lot: `5-FullIns_4` with K = 8 drops from 10.4 s (clique only) to 0.04 s, `2-FullIns_5` (K = 6) from 12.8 s to 0.20 s. On SAT instances with many colors, peel often removes nearly everything (`miles1500` with K = 73: 4.61 s to 0.01 s).
+- **DSATUR answers 40 of the 56 SAT instances** without the solver.
+- **Fixing colors is not free.** On a few SAT instances, the fixed clique steers the solver away from easy colorings: `le450_5b` (K = 5) goes from 10.3 s to 24.6 s with `clique`, and `qwhdec.order18.holes120` (K = 18) from 2.9 s to 17.8 s. `1-FullIns_5` (K = 5, UNSAT) gets slower with `clique` alone (3.0 s to 18.4 s), but with the reductions in front it takes 2.35 s.
 
 ## cvc5 and Z3
 
@@ -989,8 +1042,13 @@ python3 find_optimal_k.py OR-TOOLS benchmarks  # same, explicit
 python3 find_optimal_k.py LIA benchmarks       # use ./build/smt_solver_cvc5 with the LIA encoding
 python3 find_optimal_k.py BV --fresh           # back up the JSON and start over with BV
 python3 find_optimal_k.py BV --timeout 300     # retry the FEASIBLE graphs with 5 minutes per call
+python3 find_optimal_k.py BV --strategy dominated --strategy peel --strategy clique
+                                               # pass strategies to every solver call (see Strategies)
+python3 find_optimal_k.py BV --search binary      # binary search between the clique and the coloring
 python3 find_optimal_k.py --help               # all options
 ```
+
+While it runs in a terminal, press **`s`** to skip the current graph (the solver call is stopped and what was found so far is saved as FEASIBLE, so a later run without `--fresh` tries it again) or **`q`** to do the same and stop. With `--search binary`, each SMT call tests the middle of the range between the clique size and the best coloring so far: SAT lowers the upper end (to the number of colors the model actually uses), UNSAT raises the lower end. A timeout leaves that K unresolved and the search continues above it, so the result is OPTIMAL only if K − 1 itself was proven UNSAT. Binary search makes fewer calls when DSATUR is far from the clique size; the default linear search (K − 1, K − 2, ...) makes the calls closest to the optimum, which are the hardest ones, from the start.
 
 - **`OR-TOOLS` mode** (default) minimizes the number of colors with CP-SAT (default limit 20 s per graph).
 - **Theory mode** (any theory name) starts from a known K-coloring and calls `./build/smt_solver_cvc5 <THEORY> ... --model` with K-1 until it gets UNSAT (default limit 60 s per call). When the solver's coloring uses fewer colors than it was allowed, the search jumps straight below that number instead of stepping down by one.

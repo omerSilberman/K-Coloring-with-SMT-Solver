@@ -12,9 +12,14 @@ private:
     vector<z3::expr> idx_vars;
 public:
     using Z3Colorer::Z3Colorer;
+public:
+    bool supports_colors() const override { return true; }
 protected:
     void configure_theory() override { set_logic("QF_ALIA"); }
     void build_variables_and_bounds() override {
+        if (strategies_given()) {
+            for (int c = 1; c <= K; c++) colors.push_back(ctx.int_val(c));
+        }
         z3::expr global_array = constant("GlobalColors", ctx.array_sort(ctx.int_sort(), ctx.int_sort()));
         for (int c = 1; c <= K; c++) solver.add(z3::select(global_array, c) == c);
 
@@ -43,9 +48,12 @@ private:
 public:
     ArrayChainColorer(int k, bool model, bool print, unique_ptr<ElementTheory> elements, bool inline_chain)
         : ElementGenericColorer(k, model, print, std::move(elements)), inline_chain(inline_chain) {}
+public:
+    bool supports_colors() const override { return true; }
 protected:
     void build_variables_and_bounds() override {
         ElementDomain domain = make_domain(K);
+        colors = domain.elements;
         z3::sort array_sort = ctx.array_sort(domain.sort, domain.sort);
         i1_vars.assign(num_nodes + 1, ctx.bool_val(false));
 

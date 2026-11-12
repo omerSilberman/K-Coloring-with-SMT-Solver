@@ -196,6 +196,28 @@ button.chip.toggle.on { background: var(--accent-soft); border-color: var(--acce
 button.chip.toggle.on::before { content: "✓"; color: var(--accent); }
 button.chip.toggle.overridden { text-decoration: line-through; opacity: .55; }
 .hint.error { color: var(--unsat); }
+button.chip.toggle.limited { border-style: dashed; }
+button.chip.toggle:disabled { opacity: .45; cursor: not-allowed; }
+button.chip.toggle .kind { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
+label.check { display: flex; align-items: center; gap: 7px; font-size: 13px; text-transform: none; letter-spacing: 0; font-weight: 500; color: var(--text); cursor: pointer; }
+label.check input { width: auto; margin: 0; }
+
+/* strategy reports */
+.strategy-list { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 8px; }
+.strategy-list li { display: grid; grid-template-columns: auto 1fr auto; gap: 10px; align-items: baseline; font-size: 14px; }
+.strategy-list .name { font-weight: 650; padding: 1px 9px; border-radius: 999px; background: var(--accent-soft); color: var(--accent); font-size: 12px; }
+.strategy-list .decided .name { background: var(--sat-soft); color: var(--sat); }
+.strategy-list .ms { color: var(--muted); font: 12px var(--mono); }
+.formulas li .from { font: 600 11px system-ui, sans-serif; color: var(--accent); background: var(--accent-soft); border-radius: 999px; padding: 0 7px; margin-left: 8px; vertical-align: middle; }
+
+/* nodes touched by strategies, in the drawing */
+.drawing circle.fixed { stroke: var(--text); stroke-width: 3; }
+.drawing circle.removed { stroke: var(--text); stroke-width: 1.5; stroke-dasharray: 3 2; opacity: .55; }
+.marker-legend { display: flex; flex-wrap: wrap; gap: 16px; font-size: 12px; color: var(--muted); margin-top: 8px; }
+.marker-legend span { display: inline-flex; align-items: center; gap: 6px; }
+.marker-legend i { display: inline-block; width: 12px; height: 12px; border-radius: 50%; background: var(--edge); }
+.marker-legend i.fixed { border: 3px solid var(--text); width: 14px; height: 14px; box-sizing: border-box; }
+.marker-legend i.removed { border: 1.5px dashed var(--text); opacity: .6; }
 #custom-options { font: 12px var(--mono); padding: 6px 9px; }
 
 .segmented { display: inline-flex; background: var(--soft); border-radius: 9px; padding: 3px; gap: 2px; }
@@ -257,7 +279,7 @@ button.link:hover { text-decoration: underline; }
 .status-icon::before { content: "?"; }
 .status-title { font-size: 22px; font-weight: 700; letter-spacing: -.01em; }
 .status-sub { color: var(--muted); font-size: 14px; }
-.timer { font: 600 28px/1 var(--mono); color: var(--text); font-variant-numeric: tabular-nums; }
+.timer { font: 600 28px/1 var(--mono); color: var(--text); font-variant-numeric: tabular-nums; white-space: nowrap; flex: none; }
 
 .status.running .status-icon { background: none; }
 .status.running .status-icon::before {

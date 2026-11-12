@@ -9,6 +9,8 @@ namespace {
 class FpColorer : public Z3Colorer {
 public:
     using Z3Colorer::Z3Colorer;
+public:
+    bool supports_colors() const override { return true; }
 protected:
     void configure_theory() override { set_logic("QF_FP"); }
     void build_variables_and_bounds() override {
@@ -25,6 +27,9 @@ protected:
         };
         z3::expr lower = float_with_fraction(0);      // 1.0
         z3::expr upper = float_with_fraction(K - 1);  // 1 + (K-1)/2^23
+        if (strategies_given()) {
+            for (int c = 0; c < K; c++) colors.push_back(float_with_fraction(c));
+        }
 
         for (int i = 1; i <= num_nodes; i++) {
             node_vars[i] = constant("node_" + to_string(i), fp_sort);

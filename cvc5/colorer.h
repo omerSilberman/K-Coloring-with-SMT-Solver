@@ -7,12 +7,16 @@
 
 // An encoding builds its problem with tm and solver: one term per node in node_vars,
 // restricted to K colors in build_variables_and_bounds(), and edge_constraint(u, v),
-// u != v unless overridden.
+// u != v unless overridden. An encoding with explicit colors also fills `colors` (the K
+// color terms, in build_variables_and_bounds) and returns true from supports_colors(), so
+// strategies can fix a node's color; encodings whose colors are not terms of the node's
+// sort override fix_color / color_value instead.
 class Cvc5Colorer : public GraphColorer {
 protected:
     cvc5::TermManager tm;  // cvc5 requires a TermManager
     cvc5::Solver solver;   // native cvc5 solver
     vector<cvc5::Term> node_vars;
+    vector<cvc5::Term> colors;  // the K color terms, for strategies (if supports_colors())
 
 public:
     Cvc5Colorer(int k, bool model, bool print) : GraphColorer(k, model, print), solver(tm) {
@@ -27,6 +31,12 @@ protected:
         solver.setOption(name, value);
     }
     void graph_loaded() override { node_vars.resize(num_nodes + 1); }
+
+    size_t num_assertions() override { return solver.getAssertions().size(); }
+    void fix_color(int node, int color) override {
+        solver.assertFormula(tm.mkTerm(cvc5::Kind::EQUAL, {node_vars[node], colors.at(color)}));
+    }
+    string color_value(int color) override { return solver.getValue(colors.at(color)).toString(); }
 
     vector<string> assertions_as_text() override {
         vector<string> out;

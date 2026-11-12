@@ -18,6 +18,8 @@ z3::expr is_one_of(const z3::expr& x, const vector<z3::expr>& colors) {
 class ListUfColorer : public Z3Colorer {
 public:
     using Z3Colorer::Z3Colorer;
+public:
+    bool supports_colors() const override { return true; }
 protected:
     void configure_theory() override { set_logic("QF_UF"); }
     void build_variables_and_bounds() override {
@@ -27,6 +29,7 @@ protected:
 
         vector<z3::expr> colors{cons(nil_val, nil_val)};
         for (int i = 1; i < K; i++) colors.push_back(cons(colors.back(), nil_val));
+        this->colors = colors;
         for (int i = 0; i < K; i++) {
             for (int j = i + 1; j < K; j++) solver.add(!(colors[i] == colors[j]));
         }
@@ -41,12 +44,15 @@ protected:
 class UfColorer : public Z3Colorer {
 public:
     using Z3Colorer::Z3Colorer;
+public:
+    bool supports_colors() const override { return true; }
 protected:
     void configure_theory() override { set_logic("QF_UF"); }
     void build_variables_and_bounds() override {
         z3::sort color_sort = ctx.uninterpreted_sort("Color");
         vector<z3::expr> colors;
         for (int i = 1; i <= K; i++) colors.push_back(constant("C" + to_string(i), color_sort));
+        this->colors = colors;
         for (int i = 0; i < K; i++) {
             for (int j = i + 1; j < K; j++) solver.add(!(colors[i] == colors[j]));
         }
@@ -83,9 +89,12 @@ protected:
 class OrColorer : public ElementGenericColorer {
 public:
     using ElementGenericColorer::ElementGenericColorer;
+public:
+    bool supports_colors() const override { return true; }
 protected:
     void build_variables_and_bounds() override {
         ElementDomain domain = make_domain(K);
+        colors = domain.elements;
         for (int i = 1; i <= num_nodes; i++) {
             node_vars[i] = constant("node_" + to_string(i), domain.sort);
             vector<z3::expr> choices;

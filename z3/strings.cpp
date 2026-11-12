@@ -9,11 +9,14 @@ namespace {
 class StringColorer : public Z3Colorer {
 public:
     using Z3Colorer::Z3Colorer;
+public:
+    bool supports_colors() const override { return true; }
 protected:
     void configure_theory() override { set_logic("QF_S"); }
     void build_variables_and_bounds() override {
         vector<z3::expr> colors;
         for (int i = 1; i <= K; i++) colors.push_back(ctx.string_val(int_to_alpha(i)));
+        this->colors = colors;
         for (int i = 0; i < K; i++) {
             for (int j = i + 1; j < K; j++) solver.add(!(colors[i] == colors[j]));
         }
@@ -30,6 +33,8 @@ protected:
 class StringLexColorer : public Z3Colorer {
 public:
     using Z3Colorer::Z3Colorer;
+public:
+    bool supports_colors() const override { return true; }
 protected:
     void configure_theory() override { set_logic("QF_SLIA"); }
     void build_variables_and_bounds() override {
@@ -38,6 +43,9 @@ protected:
         }
         z3::expr start = ctx.string_val(string(1, 'A'));
         z3::expr end = ctx.string_val(string(1, (char)('A' + K - 1)));
+        if (strategies_given()) {
+            for (int c = 0; c < K; c++) colors.push_back(ctx.string_val(string(1, (char)('A' + c))));
+        }
         for (int i = 1; i <= num_nodes; i++) {
             node_vars[i] = constant("node_" + to_string(i), ctx.string_sort());
             solver.add(node_vars[i].length() == 1);
@@ -57,9 +65,14 @@ protected:
 class StringIntColorer : public Z3Colorer {
 public:
     using Z3Colorer::Z3Colorer;
+public:
+    bool supports_colors() const override { return true; }
 protected:
     void configure_theory() override { set_logic("QF_SLIA"); }
     void build_variables_and_bounds() override {
+        if (strategies_given()) {
+            for (int c = 1; c <= K; c++) colors.push_back(ctx.string_val(to_string(c)));
+        }
         for (int i = 1; i <= num_nodes; i++) {
             node_vars[i] = constant("node_" + to_string(i), ctx.string_sort());
             z3::expr as_int = node_vars[i].stoi();
@@ -74,9 +87,14 @@ protected:
 class StringRegexColorer : public Z3Colorer {
 public:
     using Z3Colorer::Z3Colorer;
+public:
+    bool supports_colors() const override { return true; }
 protected:
     void configure_theory() override { set_logic("QF_S"); }
     void build_variables_and_bounds() override {
+        if (strategies_given()) {
+            for (int c = 1; c <= K; c++) colors.push_back(ctx.string_val(int_to_alpha(c)));
+        }
         vector<Z3_ast> options;
         vector<z3::expr> keep;  // keeps the terms alive while their raw handles are used
         for (int i = 1; i <= K; i++) {
@@ -102,10 +120,15 @@ private:
     string word;
 public:
     using Z3Colorer::Z3Colorer;
+public:
+    bool supports_colors() const override { return true; }
 protected:
     void configure_theory() override { set_logic("QF_S"); }
     void build_variables_and_bounds() override {
         word = substring_word(K);
+        if (strategies_given()) {
+            for (const auto& substring : distinct_substrings(word)) colors.push_back(ctx.string_val(substring));
+        }
         z3::expr word_term = ctx.string_val(word);
         for (int i = 1; i <= num_nodes; i++) {
             node_vars[i] = constant("node_" + to_string(i), ctx.string_sort());

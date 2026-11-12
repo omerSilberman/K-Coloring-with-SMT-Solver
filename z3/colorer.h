@@ -10,12 +10,16 @@
 // An encoding builds its problem with ctx and solver: one term per node in node_vars,
 // restricted to K colors in build_variables_and_bounds(), and edge_constraint(u, v),
 // u != v unless overridden. In configure_theory() it calls set_logic(), since Z3 picks
-// its solver (and its tactics) when the solver is created.
+// its solver (and its tactics) when the solver is created. An encoding with explicit
+// colors also fills `colors` (the K color terms) and returns true from supports_colors(),
+// so strategies can fix a node's color; encodings whose colors are not terms of the
+// node's sort override fix_color / color_value instead.
 class Z3Colorer : public GraphColorer {
 protected:
     z3::context ctx;
     z3::solver solver;
     vector<z3::expr> node_vars;
+    vector<z3::expr> colors;  // the K color terms, for strategies (if supports_colors())
     optional<z3::model> last_model;  // after a SAT check
 
 public:
@@ -38,6 +42,10 @@ protected:
         z3::set_param(name.c_str(), value.c_str());
     }
     void graph_loaded() override { node_vars.assign(num_nodes + 1, ctx.bool_val(false)); }
+
+    size_t num_assertions() override { return solver.assertions().size(); }
+    void fix_color(int node, int color) override { solver.add(node_vars[node] == colors.at(color)); }
+    string color_value(int color) override { return value(colors.at(color)).to_string(); }
 
     vector<string> assertions_as_text() override {
         vector<string> out;

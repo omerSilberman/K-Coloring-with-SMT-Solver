@@ -98,6 +98,8 @@ const state = {
   mode: store.get("mode") || "pretty", result: null, highlight: null,
   labels: store.get("labels") === "value" ? "value" : "node",
   options: new Set(JSON.parse(store.get("options") || "[]")),
+  strategies: new Set(JSON.parse(store.get("strategies") || "[]")),
+  strategyReports: [], assertFrom: [],
 };
 
 // ===========================================================================
@@ -136,6 +138,10 @@ async function init() {
   $("options-field").open = store.get("optionsOpen") === "1";
   $("options-field").addEventListener("toggle", () => store.set("optionsOpen", $("options-field").open ? "1" : "0"));
   renderOptionChips();  // again, now that the saved custom options are loaded
+  $("strategies-field").open = store.get("strategiesOpen") === "1";
+  $("strategies-field").addEventListener("toggle", () => store.set("strategiesOpen", $("strategies-field").open ? "1" : "0"));
+  $("clique-exact").checked = store.get("cliqueExact") === "1";
+  $("clique-exact").addEventListener("change", () => { store.set("cliqueExact", $("clique-exact").checked ? "1" : "0"); renderStrategyChips(); });
   $("custom-options").addEventListener("input", () => {
     store.set("customOptions", $("custom-options").value);
     selectedOptions();
@@ -350,6 +356,80 @@ function renderOptionChips() {
     box.appendChild(b);
   }
   updateOptionsBadge();
+  renderStrategyChips();
+}
+
+// ===========================================================================
+// Strategies
+// ===========================================================================
+// Whether the current encoding has explicit colors (strategies can fix a node's color)
+function encodingHasColors() {
+  const [, name] = $("solver").value.split(":");
+  return !!(engine().colors || {})[name];
+}
+
+// The strategy chips: what the current solver offers, in pipeline order. A strategy that
+// needs explicit colors is disabled for encodings without them (clique still does its UNSAT check)
+function renderStrategyChips() {
+  const e = engine(), box = $("strategy-chips");
+  const list = e.strategies || [];
+  $("strategies-field").hidden = !list.length;
+  box.innerHTML = "";
+  const colors = encodingHasColors();
+  for (const s of list) {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.className = "chip toggle";
+    const limited = s.needs_colors && !colors;
+    const partial = limited && s.name === "clique";
+    b.disabled = limited && !partial;
+    b.classList.toggle("limited", partial);
+    b.classList.toggle("on", state.strategies.has(s.name) && !b.disabled);
+    b.innerHTML = `${esc(s.name)} <span class="kind">${esc(s.kind)}</span>`;
+    b.title = s.description + (s.parameters ? `\nParameters: ${s.parameters}` : "")
+      + (b.disabled ? "\nNot available: this encoding has no explicit colors." : "")
+      + (partial ? "\nThis encoding has no explicit colors: only the UNSAT check (clique larger than K) runs." : "");
+    b.addEventListener("click", () => {
+      if (state.strategies.has(s.name)) state.strategies.delete(s.name);
+      else state.strategies.add(s.name);
+      store.set("strategies", JSON.stringify([...state.strategies]));
+      renderStrategyChips();
+    });
+    box.appendChild(b);
+  }
+  $("clique-exact-field").hidden = !selectedStrategies().some(x => x.startsWith("clique"));
+  const chosen = selectedStrategies();
+  const badge = $("strategies-active");
+  badge.hidden = !chosen.length;
+  badge.textContent = `${chosen.length} on`;
+  badge.title = chosen.join(", ");
+}
+
+// The --strategy values to send, in pipeline order
+function selectedStrategies() {
+  const e = engine(), colors = encodingHasColors();
+  return (e.strategies || [])
+    .filter(s => state.strategies.has(s.name) && !(s.needs_colors && !colors && s.name !== "clique"))
+    .map(s => (s.name === "clique" && $("clique-exact").checked ? "clique:exact" : s.name));
+}
+
+function renderStrategyReports() {
+  const card = $("strategy-card"), list = $("strategy-list");
+  card.hidden = !state.strategyReports.length;
+  list.innerHTML = state.strategyReports.map(r => `<li class="${r.decided ? "decided" : ""}"><span class="name">${esc(r.name)}</span>`
+    + `<span>${esc(r.text)}</span><span class="ms">${Number(r.ms).toFixed(1)} ms</span></li>`).join("");
+  const total = state.strategyReports.reduce((sum, r) => sum + Number(r.ms), 0);
+  $("strategy-time").textContent = `${total.toFixed(1)} ms in total`;
+}
+
+// Nodes the strategies fixed or removed (original ids), for the drawing and the tooltips
+function strategyMarks() {
+  const fixed = new Map(), removed = new Map();
+  for (const r of state.strategyReports) {
+    for (const [node, color] of r.fixed || []) fixed.set(String(node), { color, by: r.name });
+    for (const node of r.removed || []) removed.set(String(node), r.name);
+  }
+  return { fixed, removed };
 }
 
 // "N on" next to the collapsed title, so active options are visible without opening it
@@ -403,6 +483,9 @@ function run() {
   const params = new URLSearchParams({ graph: graph.path, solver: solver.theory, engine: solver.engine,
                                        k, timeout: $("timeout").value || 0 });
   options.forEach(o => params.append("opt", o));
+  const strategies = selectedStrategies();
+  strategies.forEach(x => params.append("strategy", x));
+  if (strategies.length) solver.label += ` + ${strategies.join(", ")}`;
   clearResult();
   clearFormulas();
   state.running = true;
@@ -424,8 +507,15 @@ function run() {
     setStatus("running", phase === "solving" ? "Solving…" : "Running…",
               `${esc(solver.label)} on <b>${esc(graph.name)}</b> with K = ${k} · ${text}`);
   });
+  es.addEventListener("strategy", e => {
+    state.strategyReports.push(JSON.parse(e.data));
+    renderStrategyReports();
+  });
   es.addEventListener("assert", e => {
-    state.asserts.push(JSON.parse(e.data));
+    // a plain string, or {text, from} for an assertion a strategy added
+    const data = JSON.parse(e.data);
+    state.asserts.push(typeof data === "string" ? data : data.text);
+    state.assertFrom.push(typeof data === "string" ? null : data.from);
     state.totalAsserts = Math.max(state.totalAsserts, state.asserts.length);
     scheduleFormulaRender();
   });
@@ -473,7 +563,14 @@ function finish(result) {
     STOPPED: ["other", "Stopped", "You stopped the solver"],
     ERROR: ["other", "Error", "The solver did not run to the end"],
   };
-  const [cls, title, sentence] = titles[result.status] || titles.ERROR;
+  let [cls, title, sentence] = titles[result.status] || titles.ERROR;
+  const decidedBy = state.strategyReports.find(r => r.decided);
+  if (decidedBy && (result.status === "SAT" || result.status === "UNSAT")) {
+    sentence += ` · decided by the ${decidedBy.name} strategy, without the solver`;
+  } else if (state.strategyReports.length) {
+    const ms = state.strategyReports.reduce((sum, r) => sum + Number(r.ms), 0);
+    sentence += ` · strategies ${ms.toFixed(1)} ms`;
+  }
   setStatus(cls, title, `${esc(sentence)} · ${where}`);
 
   const noisy = (result.errors || []).filter(Boolean);
@@ -505,6 +602,10 @@ function showErrors(lines, soft = false) {
 function clearResult() {
   state.result = null;
   state.highlight = null;
+  if (!state.running) {
+    state.strategyReports = [];
+    renderStrategyReports();
+  }
   $("errors").hidden = true;
   $("legend").hidden = true;
   $("validity").hidden = true;
@@ -687,6 +788,7 @@ function computeLayout(n, edges) {
 function drawGraph(result = null) {
   const box = $("drawing");
   const data = state.graphData;
+  $("marker-legend").hidden = true;
   if (!data) { box.innerHTML = `<div class="msg">Loading graph…</div>`; return; }
   if (!data.edges) {
     box.innerHTML = `<div class="msg">${data.nodes} nodes and ${data.num_edges} edges is too large to draw.`
@@ -719,15 +821,23 @@ function drawGraph(result = null) {
   const labels = Array.from({ length: n + 1 }, (_, i) => (i ? labelOf(i) : ""));
   const inside = !byValue ? n <= 40 : r >= 10 && labels.every(l => l.length <= 3);
   const showLabels = !byValue ? n <= 40 : n <= 120;
+  const marks = strategyMarks();
   for (let i = 1; i <= n; i++) {
     const fill = colorOf(i), [x, y] = layout[i];
-    parts.push(`<circle data-node="${i}" cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${r}"${fill ? ` style="fill:${fill}"` : ""}/>`);
+    const mark = marks.fixed.has(String(i)) ? ' class="fixed"' : marks.removed.has(String(i)) ? ' class="removed"' : "";
+    parts.push(`<circle data-node="${i}"${mark} cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${r}"${fill ? ` style="fill:${fill}"` : ""}/>`);
     if (!showLabels || !labels[i]) continue;
     if (inside) parts.push(`<text x="${x.toFixed(1)}" y="${y.toFixed(1)}">${esc(labels[i])}</text>`);
     else parts.push(`<text class="value" x="${x.toFixed(1)}" y="${(y + r + 9).toFixed(1)}">${esc(labels[i])}</text>`);
   }
   parts.push(`</svg>`);
   box.innerHTML = parts.join("");
+  const legend = $("marker-legend");
+  const items = [];
+  if (marks.fixed.size) items.push(`<span><i class="fixed"></i>color fixed by a strategy (${marks.fixed.size})</span>`);
+  if (marks.removed.size) items.push(`<span><i class="removed"></i>removed by a strategy, colored afterwards (${marks.removed.size})</span>`);
+  legend.innerHTML = items.join("");
+  legend.hidden = !items.length;
   attachTooltips(box.querySelector("svg"));
   applyHighlight();
 }
@@ -747,7 +857,10 @@ function attachTooltips(svg) {
     const node = e.target.dataset?.node;
     if (!node) { tip.hidden = true; return; }
     const v = state.result?.colors?.[node];
-    tip.innerHTML = `<b>node ${node}</b>` + (v !== undefined ? ` <span class="math">= ${prettyValue(v)}</span>` : "");
+    const marks = strategyMarks(), fixed = marks.fixed.get(node), removed = marks.removed.get(node);
+    tip.innerHTML = `<b>node ${node}</b>` + (v !== undefined ? ` <span class="math">= ${prettyValue(v)}</span>` : "")
+      + (fixed ? `<br>color ${fixed.color + 1} fixed by ${esc(fixed.by)}` : "")
+      + (removed ? `<br>removed by ${esc(removed)}, colored afterwards` : "");
     tip.hidden = false;
     tip.style.left = `${e.clientX + 14}px`;
     tip.style.top = `${e.clientY + 12}px`;
@@ -767,6 +880,7 @@ function setMode(mode) {
 
 function clearFormulas() {
   state.asserts = [];
+  state.assertFrom = [];
   state.totalAsserts = 0;
   state.limit = PAGE;
   rebuildFormulas();
@@ -789,6 +903,13 @@ function formulaItem(i) {
   const body = document.createElement("div");
   if (html !== null) { body.className = "math"; body.innerHTML = html; }
   else { body.className = "raw"; body.textContent = text; }
+  if (state.assertFrom[i]) {
+    const tag = document.createElement("span");
+    tag.className = "from";
+    tag.textContent = state.assertFrom[i];
+    tag.title = `Added by the ${state.assertFrom[i]} strategy`;
+    body.appendChild(tag);
+  }
   li.appendChild(body);
   return li;
 }

@@ -12,9 +12,23 @@ namespace {
 class BvColorer : public Cvc5Colorer {
 public:
     using Cvc5Colorer::Cvc5Colorer;
+public:
+    bool supports_colors() const override { return true; }
 protected:
     void configure_theory() override { solver.setLogic("QF_BV"); }
     void build_variables_and_bounds() override {
+        if (strategies_given()) {
+            // colors 0..K-1 at width w when K = 2^w (K >= 2), otherwise 1..K
+            if (K >= 2 && (K & (K - 1)) == 0) {
+                int w = 0;
+                while ((1 << w) < K) { w++; }
+                for (int c = 0; c < K; c++) colors.push_back(tm.mkBitVector(w, c));
+            } else {
+                int w = 1;
+                while ((1 << w) - 1 < K) { w++; }
+                for (int c = 1; c <= K; c++) colors.push_back(tm.mkBitVector(w, c));
+            }
+        }
         if (K >= 2 && (K & (K - 1)) == 0) {
             int width = 0;
             while ((1 << width) < K) { width++; }
@@ -44,12 +58,17 @@ protected:
 class BvZeroColorer : public Cvc5Colorer {
 public:
     using Cvc5Colorer::Cvc5Colorer;
+public:
+    bool supports_colors() const override { return true; }
 protected:
     void configure_theory() override { solver.setLogic("QF_BV"); }
     void build_variables_and_bounds() override {
         int width = 1;
         while ((1 << width) < K) { width++; }
         cvc5::Sort bv_sort = tm.mkBitVectorSort(width);
+        if (strategies_given()) {
+            for (int c = 0; c < K; c++) colors.push_back(tm.mkBitVector(width, c));
+        }
         bool needs_bound = (1 << width) != K;
         cvc5::Term max_term = tm.mkBitVector(width, K - 1);
 
@@ -76,6 +95,8 @@ protected:
 class BvAndColorer : public Cvc5Colorer {
 public:
     using Cvc5Colorer::Cvc5Colorer;
+public:
+    bool supports_colors() const override { return true; }
 protected:
     void configure_theory() override { solver.setLogic("QF_BV"); }
     void build_variables_and_bounds() override {
@@ -83,6 +104,9 @@ protected:
         while ((1 << width) < K) { width++; }
         int full = (1 << width) - 1;
         int excluded = (1 << width) - K;
+        if (strategies_given()) {
+            for (int c = 0; c < K; c++) colors.push_back(tm.mkBitVector(width, excluded + c));  // E..2^w-1
+        }
 
         cvc5::Sort bv_sort = tm.mkBitVectorSort(width);
         cvc5::Term zero = tm.mkBitVector(width, 0);
@@ -115,6 +139,13 @@ private:
     static const int WIDTH = 32;
 public:
     using Cvc5Colorer::Cvc5Colorer;
+public:
+    bool supports_colors() const override { return true; }
+    // the colors are the residues 0..K-1
+    void fix_color(int node, int color) override {
+        solver.assertFormula(tm.mkTerm(cvc5::Kind::EQUAL, {residue(node_vars[node]), tm.mkBitVector(WIDTH, color)}));
+    }
+    string color_value(int color) override { return tm.mkBitVector(WIDTH, color).toString(); }
 protected:
     void configure_theory() override { solver.setLogic("QF_BV"); }
     void build_variables_and_bounds() override {
@@ -147,9 +178,18 @@ protected:
 class BvOneHotColorer : public Cvc5Colorer {
 public:
     using Cvc5Colorer::Cvc5Colorer;
+public:
+    bool supports_colors() const override { return true; }
 protected:
     void configure_theory() override { solver.setLogic("QF_BV"); }
     void build_variables_and_bounds() override {
+        if (strategies_given()) {
+            for (int c = 0; c < K; c++) {
+                string bits(K, '0');
+                bits[K - 1 - c] = '1';  // only bit c
+                colors.push_back(tm.mkBitVector(K, bits, 2));
+            }
+        }
         cvc5::Sort bv_sort = tm.mkBitVectorSort(K);
         cvc5::Term zero = tm.mkBitVector(K, 0);
         cvc5::Term one = tm.mkBitVector(K, 1);
@@ -184,10 +224,19 @@ private:
 public:
     BvOrderColorer(int k, bool model, bool print, bool use_shift)
         : Cvc5Colorer(k, model, print), use_shift(use_shift) {}
+public:
+    bool supports_colors() const override { return true; }
 protected:
     void configure_theory() override { solver.setLogic("QF_BV"); }
     void build_variables_and_bounds() override {
         int width = max(K - 1, 1);
+        if (strategies_given()) {
+            for (int c = 0; c < K; c++) {
+                string bits(width, '0');
+                for (int b = 0; b < c; b++) bits[width - 1 - b] = '1';  // the lowest c bits
+                colors.push_back(tm.mkBitVector(width, bits, 2));
+            }
+        }
         cvc5::Sort bv_sort = tm.mkBitVectorSort(width);
         cvc5::Term zero = tm.mkBitVector(width, 0), one = tm.mkBitVector(width, 1);
         for (int i = 1; i <= num_nodes; i++) {

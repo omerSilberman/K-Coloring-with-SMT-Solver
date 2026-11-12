@@ -11,6 +11,8 @@ namespace {
 class FiniteFieldColorer : public Cvc5Colorer {
 public:
     using Cvc5Colorer::Cvc5Colorer;
+public:
+    bool supports_colors() const override { return true; }
 protected:
     int p = 0;
     cvc5::Sort ff_sort;
@@ -19,6 +21,12 @@ protected:
     virtual int choose_modulus() = 0;
     // Constraint restricting x to K of the p field elements (null term = no constraint)
     virtual cvc5::Term domain_constraint(const cvc5::Term& x) = 0;
+    // The K colors as field elements (0..K-1 unless overridden)
+    virtual vector<int> color_values() {
+        vector<int> values;
+        for (int c = 0; c < K; c++) values.push_back(c);
+        return values;
+    }
 
     cvc5::Term ff_const(int value) {
         return tm.mkFiniteFieldElem(to_string(((value % p) + p) % p), ff_sort);
@@ -28,6 +36,9 @@ protected:
     void build_variables_and_bounds() override {
         p = choose_modulus();
         ff_sort = tm.mkFiniteFieldSort(to_string(p));
+        if (strategies_given()) {
+            for (int value : color_values()) colors.push_back(ff_const(value));
+        }
 
         for (int i = 1; i <= num_nodes; i++) {
             node_vars[i] = tm.mkConst(ff_sort, "node_" + to_string(i));
@@ -83,6 +94,16 @@ class FfRootsColorer : public FiniteFieldColorer {
 public:
     using FiniteFieldColorer::FiniteFieldColorer;
 protected:
+    // The K-th roots of unity: the x in GF(p) with x^K = 1
+    vector<int> color_values() override {
+        vector<int> roots;
+        for (long long x = 1; x < p; x++) {
+            long long power = 1;
+            for (int e = 0; e < K; e++) power = power * x % p;
+            if (power == 1) roots.push_back((int)x);
+        }
+        return roots;
+    }
     int choose_modulus() override {
         int q = K + 1;
         while (!is_prime(q)) q += K;

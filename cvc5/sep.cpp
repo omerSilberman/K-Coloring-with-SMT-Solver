@@ -27,6 +27,8 @@ private:
     }
 public:
     using ElementGenericColorer::ElementGenericColorer;
+public:
+    bool supports_colors() const override { return true; }
 protected:
     void configure_theory() override {
         solver.setOption("incremental", "false");  // cvc5 requires this for separation logic
@@ -41,7 +43,9 @@ protected:
 
         vector<cvc5::Term> cells;
         for (int c = 1; c <= K; c++) {
-            cells.push_back(points_to(tm.mkConst(domain.sort, "c_" + to_string(c))));
+            cvc5::Term cell = tm.mkConst(domain.sort, "c_" + to_string(c));
+            colors.push_back(cell);  // the colors are the heap cells
+            cells.push_back(points_to(cell));
         }
         solver.assertFormula(star(cells));
 

@@ -13,6 +13,8 @@ private:
     vector<cvc5::Term> color_constants;
 public:
     using Cvc5Colorer::Cvc5Colorer;
+public:
+    bool supports_colors() const override { return true; }
 protected:
     void configure_theory() override { solver.setLogic("QF_UF"); }
     void build_variables_and_bounds() override {
@@ -33,6 +35,7 @@ protected:
                 solver.assertFormula(tm.mkTerm(cvc5::Kind::NOT, {eq}));
             }
         }
+        colors = color_constants;
         for (int i = 1; i <= num_nodes; i++) {
             node_vars[i] = tm.mkConst(list_sort, "node_" + to_string(i));
             cvc5::Term domain_constraint = tm.mkTerm(cvc5::Kind::EQUAL, {node_vars[i], color_constants[0]});
@@ -53,6 +56,8 @@ private:
     vector<cvc5::Term> color_constants;
 public:
     using Cvc5Colorer::Cvc5Colorer;
+public:
+    bool supports_colors() const override { return true; }
 protected:
     void configure_theory() override { solver.setLogic("QF_UF"); }
     void build_variables_and_bounds() override {
@@ -67,6 +72,7 @@ protected:
                 solver.assertFormula(tm.mkTerm(cvc5::Kind::NOT, {eq}));
             }
         }
+        colors = color_constants;
         for (int i = 1; i <= num_nodes; i++) {
             node_vars[i] = tm.mkConst(color_sort, "node_" + to_string(i));
             cvc5::Term domain_constraint = tm.mkTerm(cvc5::Kind::EQUAL, {node_vars[i], color_constants[0]});
@@ -113,9 +119,12 @@ protected:
 class OrColorer : public ElementGenericColorer {
 public:
     using ElementGenericColorer::ElementGenericColorer;
+public:
+    bool supports_colors() const override { return true; }
 protected:
     void build_variables_and_bounds() override {
         ElementDomain domain = make_domain(K);
+        colors = domain.elements;
         for (int i = 1; i <= num_nodes; i++) {
             node_vars[i] = tm.mkConst(domain.sort, "node_" + to_string(i));
             vector<cvc5::Term> choices;

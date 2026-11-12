@@ -12,6 +12,8 @@ private:
     vector<cvc5::Term> color_constants;
 public:
     using Cvc5Colorer::Cvc5Colorer;
+public:
+    bool supports_colors() const override { return true; }
 protected:
     void configure_theory() override { solver.setLogic("QF_DT"); }
     void build_variables_and_bounds() override {
@@ -28,6 +30,7 @@ protected:
             color_constants.push_back(tm.mkTerm(cvc5::Kind::APPLY_CONSTRUCTOR, {op}));
         }
 
+        colors = color_constants;
         for (int i = 1; i <= num_nodes; i++) {
             node_vars[i] = tm.mkConst(color_sort, "node_" + to_string(i));
             cvc5::Term domain_constraint = tm.mkTerm(cvc5::Kind::EQUAL, {node_vars[i], color_constants[0]});
@@ -51,6 +54,8 @@ protected:
 class PeanoColorer : public Cvc5Colorer {
 public:
     using Cvc5Colorer::Cvc5Colorer;
+public:
+    bool supports_colors() const override { return true; }
 protected:
     void configure_theory() override { solver.setLogic("QF_DT"); }
     void build_variables_and_bounds() override {
@@ -63,6 +68,14 @@ protected:
         cvc5::DatatypeConstructor s_cons = nat_sort.getDatatype().getConstructor("S");
         cvc5::Term is_s = s_cons.getTesterTerm();
         cvc5::Term pred = s_cons.getSelector("pred").getTerm();
+        if (strategies_given()) {
+            // the colors Z, S(Z), ..., S^(K-1)(Z)
+            cvc5::Term color = tm.mkTerm(cvc5::Kind::APPLY_CONSTRUCTOR, {nat_sort.getDatatype().getConstructor("Z").getTerm()});
+            for (int c = 0; c < K; c++) {
+                colors.push_back(color);
+                color = tm.mkTerm(cvc5::Kind::APPLY_CONSTRUCTOR, {s_cons.getTerm(), color});
+            }
+        }
 
         for (int i = 1; i <= num_nodes; i++) {
             node_vars[i] = tm.mkConst(nat_sort, "node_" + to_string(i));

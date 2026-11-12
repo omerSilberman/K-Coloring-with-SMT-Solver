@@ -14,6 +14,7 @@ int run_cli(int argc, char** argv, const string& program, const string& engine, 
     bool produce_model = false;
     bool print_asserts = false;
     vector<pair<string, string>> solver_options;
+    vector<string> strategy_specs;
     vector<string> pos_args;
 
     // Parse command line arguments
@@ -27,9 +28,29 @@ int run_cli(int argc, char** argv, const string& program, const string& engine, 
             cout << "  --opt NAME=VALUE Set a " << engine << " option (repeatable), e.g. --opt "
                  << (engine == "cvc5" ? "bitblast=eager" : "smt.random_seed=7") << endl;
             cout << "                   (NAME alone means NAME=true)" << endl;
+            cout << "  --strategy NAME[:PARAMS]  Run a strategy before the solver (repeatable; they run" << endl;
+            cout << "                   in a fixed order whatever the order given):" << endl;
+            for (const auto& s : strategies::strategy_list()) {
+                cout << "                     " << s.name << " (" << s.kind << ")"
+                     << (s.parameters.empty() ? "" : ", parameters: " + s.parameters) << endl;
+            }
+            cout << "  --list-json      Print the encodings and strategies as JSON, and exit" << endl;
             cout << "  --help, -h       Show this help message" << endl;
             registry.print_help(cout);
             return 0;
+        } else if (arg == "--list-json") {
+            registry.print_json(cout);
+            return 0;
+        } else if (arg == "--strategy" || arg.rfind("--strategy=", 0) == 0) {
+            if (arg == "--strategy") {
+                if (i + 1 >= argc) {
+                    cerr << "Error: --strategy needs a name." << endl;
+                    return 1;
+                }
+                strategy_specs.push_back(argv[++i]);
+            } else {
+                strategy_specs.push_back(arg.substr(11));
+            }
         } else if (arg == "--model") {
             produce_model = true;
         } else if (arg == "--print-asserts") {
@@ -82,6 +103,7 @@ int run_cli(int argc, char** argv, const string& program, const string& engine, 
             return 1;
         }
         colorer->set_solver_options(solver_options);
+        colorer->set_strategies(strategy_specs);
         colorer->load_dimacs(filename);
         colorer->solve();
     } catch (const exception& e) {

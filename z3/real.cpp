@@ -10,9 +10,14 @@ namespace {
 class NlraColorer : public Z3Colorer {
 public:
     using Z3Colorer::Z3Colorer;
+public:
+    bool supports_colors() const override { return true; }
 protected:
     void configure_theory() override { set_logic("QF_NRA"); }
     void build_variables_and_bounds() override {
+        if (strategies_given()) {
+            for (int c = 1; c <= K; c++) colors.push_back(ctx.real_val(c));
+        }
         for (int i = 1; i <= num_nodes; i++) {
             node_vars[i] = constant("node_" + to_string(i), ctx.real_sort());
             z3::expr polynomial = node_vars[i] - ctx.real_val(1);

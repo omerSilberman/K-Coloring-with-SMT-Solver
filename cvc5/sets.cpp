@@ -14,6 +14,8 @@ namespace {
 class SetCubeColorer : public ElementGenericColorer {
 public:
     using ElementGenericColorer::ElementGenericColorer;
+public:
+    bool supports_colors() const override { return true; }
 protected:
     string container_logic() const override { return "FS"; }
     void build_variables_and_bounds() override {
@@ -22,6 +24,9 @@ protected:
 
         ElementDomain domain = make_domain(L);
         cvc5::Sort set_sort = tm.mkSetSort(domain.sort);
+        if (strategies_given()) {
+            for (int c = 0; c < K; c++) colors.push_back(set_of_bits(domain.elements, c, set_sort));
+        }
         cvc5::Term universe = set_of(domain.elements, set_sort);
         vector<cvc5::Term> banned_sets;
         for (int b = K; b < (1 << L); b++) {
@@ -51,6 +56,8 @@ protected:
 class SetMaskColorer : public ElementGenericColorer {
 public:
     using ElementGenericColorer::ElementGenericColorer;
+public:
+    bool supports_colors() const override { return true; }
 protected:
     string container_logic() const override { return "FS"; }
     void build_variables_and_bounds() override {
@@ -60,6 +67,9 @@ protected:
 
         ElementDomain domain = make_domain(L);
         cvc5::Sort set_sort = tm.mkSetSort(domain.sort);
+        if (strategies_given()) {
+            for (int c = 0; c < K; c++) colors.push_back(set_of_bits(domain.elements, excluded + c, set_sort));  // E..2^L-1
+        }
         cvc5::Term universe = set_of(domain.elements, set_sort);
         vector<cvc5::Term> forbidden;  // the A_b
         for (int b = 0; b < L; b++) {
@@ -87,10 +97,13 @@ protected:
 class SetMemberColorer : public ElementGenericColorer {
 public:
     using ElementGenericColorer::ElementGenericColorer;
+public:
+    bool supports_colors() const override { return true; }
 protected:
     string container_logic() const override { return "FS"; }
     void build_variables_and_bounds() override {
         ElementDomain domain = make_domain(K);
+        colors = domain.elements;
         cvc5::Term domain_set = set_of(domain.elements, tm.mkSetSort(domain.sort));
         for (int i = 1; i <= num_nodes; i++) {
             node_vars[i] = tm.mkConst(domain.sort, "node_" + to_string(i));
@@ -113,6 +126,11 @@ private:
     vector<cvc5::Term> classes;
 public:
     using ElementGenericColorer::ElementGenericColorer;
+public:
+    bool supports_colors() const override { return true; }
+    // color j is the class S_j; the model prints colors as 1..K
+    void fix_color(int node, int color) override { solver.assertFormula(member(node, color)); }
+    string color_value(int color) override { return to_string(color + 1); }
 protected:
     string container_logic() const override { return "FS"; }
     void build_variables_and_bounds() override {
@@ -182,6 +200,13 @@ private:
     }
 public:
     using ElementGenericColorer::ElementGenericColorer;
+public:
+    bool supports_colors() const override { return true; }
+    // color j is the pair (node, j) in C; the model prints colors as 1..K
+    void fix_color(int node, int color) override {
+        solver.assertFormula(tm.mkTerm(cvc5::Kind::SET_MEMBER, {pair(node, color + 1), coloring}));
+    }
+    string color_value(int color) override { return to_string(color + 1); }
 protected:
     // Tuples (relations) on top of sets have no SMT-LIB logic name
     void configure_theory() override { solver.setLogic("ALL"); }

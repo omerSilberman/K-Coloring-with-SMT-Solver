@@ -12,11 +12,16 @@ namespace {
 class SetCubeColorer : public ElementGenericColorer {
 public:
     using ElementGenericColorer::ElementGenericColorer;
+public:
+    bool supports_colors() const override { return true; }
 protected:
     void build_variables_and_bounds() override {
         int L = 0;
         while ((1 << L) < K) { L++; }
         ElementDomain domain = make_domain(L);
+        if (strategies_given()) {
+            for (int c = 0; c < K; c++) colors.push_back(set_of_bits(domain.elements, c, domain.sort));
+        }
         z3::expr universe = set_of(domain.elements, domain.sort);
         vector<z3::expr> banned_sets;
         for (int b = K; b < (1 << L); b++) banned_sets.push_back(set_of_bits(domain.elements, b, domain.sort));
@@ -33,12 +38,17 @@ protected:
 class SetMaskColorer : public ElementGenericColorer {
 public:
     using ElementGenericColorer::ElementGenericColorer;
+public:
+    bool supports_colors() const override { return true; }
 protected:
     void build_variables_and_bounds() override {
         int L = 0;
         while ((1 << L) < K) { L++; }
         int excluded = (1 << L) - K;
         ElementDomain domain = make_domain(L);
+        if (strategies_given()) {
+            for (int c = 0; c < K; c++) colors.push_back(set_of_bits(domain.elements, excluded + c, domain.sort));  // E..2^L-1
+        }
         z3::expr universe = set_of(domain.elements, domain.sort);
         vector<z3::expr> forbidden;  // the A_b
         for (int b = 0; b < L; b++) {
@@ -59,9 +69,12 @@ protected:
 class SetMemberColorer : public ElementGenericColorer {
 public:
     using ElementGenericColorer::ElementGenericColorer;
+public:
+    bool supports_colors() const override { return true; }
 protected:
     void build_variables_and_bounds() override {
         ElementDomain domain = make_domain(K);
+        colors = domain.elements;
         z3::expr domain_set = set_of(domain.elements, domain.sort);
         for (int i = 1; i <= num_nodes; i++) {
             node_vars[i] = constant("node_" + to_string(i), domain.sort);
@@ -78,6 +91,11 @@ private:
     vector<z3::expr> classes;
 public:
     using ElementGenericColorer::ElementGenericColorer;
+public:
+    bool supports_colors() const override { return true; }
+    // color j is the class S_j; the model prints colors as 1..K
+    void fix_color(int node, int color) override { solver.add(in_class(node, color)); }
+    string color_value(int color) override { return to_string(color + 1); }
 protected:
     void build_variables_and_bounds() override {
         ElementDomain domain = make_domain(num_nodes);
@@ -131,6 +149,11 @@ private:
     z3::expr pair(int a, int b) { return (*mk_pair)(ids[a - 1], ids[b - 1]); }
 public:
     using ElementGenericColorer::ElementGenericColorer;
+public:
+    bool supports_colors() const override { return true; }
+    // color j is the pair (node, j) in C; the model prints colors as 1..K
+    void fix_color(int node, int color) override { solver.add(member(pair(node, color + 1), *coloring)); }
+    string color_value(int color) override { return to_string(color + 1); }
 protected:
     void build_variables_and_bounds() override {
         ElementDomain domain = make_domain(max(num_nodes, K));

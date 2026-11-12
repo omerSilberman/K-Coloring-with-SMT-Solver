@@ -121,9 +121,22 @@ def list_engines():
         program = engine["command"][-1]
         if not os.path.exists(program):
             entry["error"] = f"{os.path.relpath(program, ROOT)} not found (build it first)"
+        elif engine["options"]:
+            # the C++ engines describe themselves: encodings, their colors, the strategies
+            listing = json.loads(subprocess.run(engine["command"] + ["--list-json"], capture_output=True, text=True).stdout)
+            encodings = listing["encodings"]
+            entry.update({
+                "specific": [e["name"] for e in encodings if not e["generic"]],
+                "generic": [e["name"] for e in encodings if e["generic"]],
+                "defaults": {e["name"]: e["default_element"] for e in encodings if e["generic"]},
+                "elements": listing["elements"],
+                "colors": {e["name"]: e["colors"] for e in encodings},
+                "strategies": listing["strategies"],
+            })
         else:
             text = subprocess.run(engine["command"] + ["--help"], capture_output=True, text=True).stdout
             entry.update(parse_help(text))
+            entry.update({"colors": {}, "strategies": []})
         engines.append(entry)
     return engines
 
@@ -208,9 +221,14 @@ class Handler(BaseHTTPRequestHandler):
         options = [o for o in query.get("opt", []) if o] if engine["options"] else []
         if not all(re.fullmatch(r"[a-z][a-z0-9_.-]*(=[A-Za-z0-9._+-]+)?", o) for o in options):
             return self.send_json({"error": "bad solver option"}, 400)
+        # Strategies, NAME or NAME:PARAMS (the C++ engines only)
+        strategy_specs = [s for s in query.get("strategy", []) if s] if engine["options"] else []
+        if not all(re.fullmatch(r"[a-z][a-z0-9-]*(:[a-z0-9=,]+)?", s) for s in strategy_specs):
+            return self.send_json({"error": "bad strategy"}, 400)
 
         binary = engine["command"]
-        cmd = binary + [theory, full, str(k), "--print-asserts", "--model"] + [a for o in options for a in ("--opt", o)]
+        cmd = (binary + [theory, full, str(k), "--print-asserts", "--model"]
+               + [a for o in options for a in ("--opt", o)] + [a for s in strategy_specs for a in ("--strategy", s)])
 
         self.send_response(200)
         self.send_header("Content-Type", "text/event-stream")
@@ -244,6 +262,7 @@ class Handler(BaseHTTPRequestHandler):
         send("start", {"command": command_shown})
 
         sent_asserts = total_asserts = 0
+        strategy_tag = None
         in_query = False
         status, model, errors = None, None, []
         open_streams = 2
@@ -264,6 +283,14 @@ class Handler(BaseHTTPRequestHandler):
                 if tag == "err":
                     errors.append(line)
                     continue
+                if line.startswith("STRATEGY-JSON "):
+                    send("strategy", json.loads(line[len("STRATEGY-JSON "):]))
+                    continue
+                if line.startswith("STRATEGY "):
+                    continue  # the human-readable twin of STRATEGY-JSON
+                if line.startswith("; strategy: "):
+                    strategy_tag = line[len("; strategy: "):]  # the following assertions come from it
+                    continue
                 if line.startswith("; ---"):
                     # opening marker -> formulas follow; closing marker -> solving starts
                     in_query = "ASSERTED" in line or "QUERY" in line
@@ -273,7 +300,8 @@ class Handler(BaseHTTPRequestHandler):
                     total_asserts += 1
                     if sent_asserts < MAX_ASSERTS_SENT:
                         sent_asserts += 1
-                        send("assert", line[len("(assert "):-1])
+                        text = line[len("(assert "):-1]
+                        send("assert", {"text": text, "from": strategy_tag} if strategy_tag else text)
                     elif total_asserts % 2000 == 0:
                         send("assert_count", total_asserts)
                     continue

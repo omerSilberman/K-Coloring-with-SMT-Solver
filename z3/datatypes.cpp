@@ -8,6 +8,8 @@ namespace {
 class ListDtColorer : public Z3Colorer {
 public:
     using Z3Colorer::Z3Colorer;
+public:
+    bool supports_colors() const override { return true; }
 protected:
     void configure_theory() override { set_logic("QF_DT"); }
     void build_variables_and_bounds() override {
@@ -17,6 +19,9 @@ protected:
         for (const auto& name : names) c_names.push_back(name.c_str());
         z3::func_decl_vector constructors(ctx), testers(ctx);
         z3::sort color_sort = ctx.enumeration_sort("Color", K, c_names.data(), constructors, testers);
+        if (strategies_given()) {
+            for (int c = 0; c < K; c++) colors.push_back(constructors[c]());
+        }
 
         for (int i = 1; i <= num_nodes; i++) {
             node_vars[i] = constant("node_" + to_string(i), color_sort);
@@ -32,6 +37,8 @@ protected:
 class PeanoColorer : public Z3Colorer {
 public:
     using Z3Colorer::Z3Colorer;
+public:
+    bool supports_colors() const override { return true; }
 protected:
     void configure_theory() override { set_logic("QF_DT"); }
     void build_variables_and_bounds() override {
@@ -50,6 +57,14 @@ protected:
         Z3_del_constructor(ctx, cons[1]);
         z3::func_decl is_s = nat_sort.recognizers()[1];
         z3::func_decl pred = nat_sort.constructors()[1].accessors()[0];
+        if (strategies_given()) {
+            // the colors Z, S(Z), ..., S^(K-1)(Z)
+            z3::expr color = nat_sort.constructors()[0]();
+            for (int c = 0; c < K; c++) {
+                colors.push_back(color);
+                color = nat_sort.constructors()[1](color);
+            }
+        }
 
         for (int i = 1; i <= num_nodes; i++) {
             node_vars[i] = constant("node_" + to_string(i), nat_sort);

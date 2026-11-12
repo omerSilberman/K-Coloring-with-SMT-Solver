@@ -76,6 +76,15 @@
         </div>
       </details>
 
+      <details class="field options" id="strategies-field" hidden>
+        <summary><span class="summary-title">Strategies</span> <span id="strategies-active" class="options-active" hidden></span></summary>
+        <div class="options-body">
+          <p class="hint">Graph reasoning before the solver, the same for every encoding. They run in this order. Hover for details.</p>
+          <div id="strategy-chips" class="chips"></div>
+          <label class="check" id="clique-exact-field" hidden><input type="checkbox" id="clique-exact"> exact clique search (up to 2 s; otherwise greedy)</label>
+        </div>
+      </details>
+
       <div class="field two">
         <div>
           <label for="k">K (colors)</label>
@@ -112,6 +121,11 @@
         <div id="timer" class="timer" hidden>0.0 s</div>
       </div>
 
+      <div id="strategy-card" class="card strategy-card" hidden>
+        <div class="card-head"><h2>Strategies</h2><span id="strategy-time" class="count"></span></div>
+        <ol id="strategy-list" class="strategy-list"></ol>
+      </div>
+
       <div id="errors" class="card errors" hidden></div>
 
       <div id="graph-card" class="card">
@@ -127,6 +141,7 @@
         </div>
         <div id="legend" class="legend" hidden></div>
         <div id="drawing" class="drawing"></div>
+        <div id="marker-legend" class="marker-legend" hidden></div>
         <details id="node-details" class="node-details" hidden>
           <summary>Show the color of every node</summary>
           <input id="node-filter" type="search" placeholder="Filter: node number or value…" autocomplete="off">

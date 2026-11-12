@@ -10,6 +10,7 @@
 #include <stdexcept>
 
 #include "colorer.h"
+#include "json.h"
 
 // Colorer: the engine's base class. Elements: its element-theory class, used by the
 // theory-independent encodings (NAME-<ELEM>).
@@ -98,6 +99,40 @@ public:
         }
         exceptions.push_back(usual + " otherwise");
         out << "  (default " << join(exceptions, ", ") << "; BOOL has only 2 elements)" << endl;
+    }
+
+    // Everything the GUI needs, as JSON: the encodings (with their element theories and
+    // whether strategies can fix colors in them) and the strategies
+    void print_json(ostream& out) const {
+        auto colors = [&](const string& name) {
+            auto colorer = create(name, 3, false, false);
+            return colorer && colorer->supports_colors();
+        };
+        out << "{\"encodings\":[";
+        bool first = true;
+        for (const auto& group : groups) {
+            for (const auto& encoding : group) {
+                out << (first ? "" : ",") << "{\"name\":" << json_string(encoding.name)
+                    << ",\"generic\":false,\"colors\":" << (colors(encoding.name) ? "true" : "false") << "}";
+                first = false;
+            }
+        }
+        for (const auto& encoding : generics) {
+            out << (first ? "" : ",") << "{\"name\":" << json_string(encoding.name) << ",\"generic\":true,\"default_element\":"
+                << json_string(encoding.default_element) << ",\"colors\":" << (colors(encoding.name) ? "true" : "false") << "}";
+            first = false;
+        }
+        out << "],\"elements\":[";
+        for (size_t i = 0; i < element_names.size(); i++) out << (i ? "," : "") << json_string(element_names[i]);
+        out << "],\"strategies\":[";
+        const auto& list = strategies::strategy_list();
+        for (size_t i = 0; i < list.size(); i++) {
+            const auto& s = list[i];
+            out << (i ? "," : "") << "{\"name\":" << json_string(s.name) << ",\"kind\":" << json_string(s.kind)
+                << ",\"needs_colors\":" << (s.needs_colors ? "true" : "false") << ",\"description\":"
+                << json_string(s.description) << ",\"parameters\":" << json_string(s.parameters) << "}";
+        }
+        out << "]}" << endl;
     }
 
 private:

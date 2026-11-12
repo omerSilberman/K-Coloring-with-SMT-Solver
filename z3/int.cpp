@@ -8,9 +8,14 @@ namespace {
 class LiaColorer : public Z3Colorer {
 public:
     using Z3Colorer::Z3Colorer;
+public:
+    bool supports_colors() const override { return true; }
 protected:
     void configure_theory() override { set_logic("QF_LIA"); }
     void build_variables_and_bounds() override {
+        if (strategies_given()) {
+            for (int c = 1; c <= K; c++) colors.push_back(ctx.int_val(c));
+        }
         for (int i = 1; i <= num_nodes; ++i) {
             node_vars[i] = constant("node_" + to_string(i), ctx.int_sort());
             solver.add(node_vars[i] >= 1);
@@ -25,6 +30,11 @@ private:
     optional<z3::expr> zero;
 public:
     using Z3Colorer::Z3Colorer;
+public:
+    bool supports_colors() const override { return true; }
+    // the colors are node - zero = 1..K
+    void fix_color(int node, int color) override { solver.add(node_vars[node] - *zero == color + 1); }
+    string color_value(int color) override { return to_string(color + 1); }
 protected:
     void configure_theory() override { set_logic("QF_IDL"); }
     void build_variables_and_bounds() override {
@@ -48,6 +58,11 @@ protected:
 class IntModColorer : public Z3Colorer {
 public:
     using Z3Colorer::Z3Colorer;
+public:
+    bool supports_colors() const override { return true; }
+    // the colors are the residues 0..K-1
+    void fix_color(int node, int color) override { solver.add(residue(node_vars[node]) == color); }
+    string color_value(int color) override { return to_string(color); }
 protected:
     void configure_theory() override { set_logic("QF_LIA"); }
     void build_variables_and_bounds() override {
@@ -72,9 +87,14 @@ protected:
 class IntPow2Colorer : public Z3Colorer {
 public:
     using Z3Colorer::Z3Colorer;
+public:
+    bool supports_colors() const override { return true; }
 protected:
     void configure_theory() override { set_logic("ALL"); }
     void build_variables_and_bounds() override {
+        if (strategies_given()) {
+            for (int c = 0; c < K; c++) colors.push_back(z3::pw(ctx.int_val(2), ctx.int_val(c)));
+        }
         for (int i = 1; i <= num_nodes; ++i) {
             z3::expr e = constant("e_" + to_string(i), ctx.int_sort());
             solver.add(e >= 0);

@@ -10,9 +10,14 @@ namespace {
 class NlraColorer : public Cvc5Colorer {
 public:
     using Cvc5Colorer::Cvc5Colorer;
+public:
+    bool supports_colors() const override { return true; }
 protected:
     void configure_theory() override { solver.setLogic("QF_NRA"); }
     void build_variables_and_bounds() override {
+        if (strategies_given()) {
+            for (int c = 1; c <= K; c++) colors.push_back(tm.mkReal(to_string(c)));
+        }
         cvc5::Sort real_sort = tm.getRealSort();
         cvc5::Term zero = tm.mkReal("0");
         

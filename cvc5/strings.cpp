@@ -13,6 +13,8 @@ private:
     vector<cvc5::Term> color_constants;
 public:
     using Cvc5Colorer::Cvc5Colorer;
+public:
+    bool supports_colors() const override { return true; }
 protected:
     void configure_theory() override { solver.setLogic("QF_S"); }
     void build_variables_and_bounds() override {
@@ -28,6 +30,7 @@ protected:
                 solver.assertFormula(tm.mkTerm(cvc5::Kind::NOT, {eq}));
             }
         }
+        colors = color_constants;
         for (int i = 1; i <= num_nodes; i++) {
             node_vars[i] = tm.mkConst(str_sort, "node_" + to_string(i));
             cvc5::Term domain_constraint = tm.mkTerm(cvc5::Kind::EQUAL, {node_vars[i], color_constants[0]});
@@ -46,6 +49,8 @@ protected:
 class StringLexColorer : public Cvc5Colorer {
 public:
     using Cvc5Colorer::Cvc5Colorer;
+public:
+    bool supports_colors() const override { return true; }
 protected:
     void configure_theory() override { solver.setLogic("QF_SLIA"); }
     void build_variables_and_bounds() override {
@@ -59,6 +64,9 @@ protected:
         string end_char(1, (char)('A' + K - 1));
         cvc5::Term start_term = tm.mkString(start_char);
         cvc5::Term end_term = tm.mkString(end_char);
+        if (strategies_given()) {
+            for (int c = 0; c < K; c++) colors.push_back(tm.mkString(string(1, (char)('A' + c))));
+        }
 
         for (int i = 1; i <= num_nodes; i++) {
             node_vars[i] = tm.mkConst(str_sort, "node_" + to_string(i));
@@ -78,9 +86,14 @@ protected:
 class StringIntColorer : public Cvc5Colorer {
 public:
     using Cvc5Colorer::Cvc5Colorer;
+public:
+    bool supports_colors() const override { return true; }
 protected:
     void configure_theory() override { solver.setLogic("QF_SLIA"); }
     void build_variables_and_bounds() override {
+        if (strategies_given()) {
+            for (int c = 1; c <= K; c++) colors.push_back(tm.mkString(to_string(c)));
+        }
         cvc5::Sort str_sort = tm.getStringSort();
         cvc5::Term one = tm.mkInteger(1);
         cvc5::Term k_term = tm.mkInteger(K);
@@ -109,9 +122,14 @@ protected:
 class StringRegexColorer : public Cvc5Colorer {
 public:
     using Cvc5Colorer::Cvc5Colorer;
+public:
+    bool supports_colors() const override { return true; }
 protected:
     void configure_theory() override { solver.setLogic("QF_S"); }
     void build_variables_and_bounds() override {
+        if (strategies_given()) {
+            for (int c = 1; c <= K; c++) colors.push_back(tm.mkString(int_to_alpha(c)));
+        }
         cvc5::Sort str_sort = tm.getStringSort();
         
         // 1. Build the Regex options
@@ -148,10 +166,15 @@ private:
     string word;
 public:
     using Cvc5Colorer::Cvc5Colorer;
+public:
+    bool supports_colors() const override { return true; }
 protected:
     void configure_theory() override { solver.setLogic("QF_S"); }
     void build_variables_and_bounds() override {
         word = substring_word(K);
+        if (strategies_given()) {
+            for (const auto& substring : distinct_substrings(word)) colors.push_back(tm.mkString(substring));
+        }
         cvc5::Sort str_sort = tm.getStringSort();
         cvc5::Term word_term = tm.mkString(word);
 

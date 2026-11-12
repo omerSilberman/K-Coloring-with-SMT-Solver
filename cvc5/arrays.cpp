@@ -14,10 +14,15 @@ private:
     vector<cvc5::Term> idx_vars;
 public:
     using Cvc5Colorer::Cvc5Colorer;
+public:
+    bool supports_colors() const override { return true; }
 protected:
     void configure_theory() override { solver.setLogic("QF_ALIA"); }
     
     void build_variables_and_bounds() override {
+        if (strategies_given()) {
+            for (int c = 1; c <= K; c++) colors.push_back(tm.mkInteger(c));
+        }
         cvc5::Sort int_sort = tm.getIntegerSort();
         cvc5::Sort array_sort = tm.mkArraySort(int_sort, int_sort);
         
@@ -69,10 +74,13 @@ private:
 public:
     ArrayChainColorer(int k, bool model, bool print, unique_ptr<ElementTheory> elements, bool inline_chain)
         : ElementGenericColorer(k, model, print, std::move(elements)), inline_chain(inline_chain) {}
+public:
+    bool supports_colors() const override { return true; }
 protected:
     string container_logic() const override { return "A"; }
     void build_variables_and_bounds() override {
         ElementDomain domain = make_domain(K);
+        colors = domain.elements;
         cvc5::Sort array_sort = tm.mkArraySort(domain.sort, domain.sort);
         i1_vars.resize(num_nodes + 1);
 

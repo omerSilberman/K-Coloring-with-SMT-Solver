@@ -156,6 +156,10 @@ The trig encodings never return SAT in cvc5 (their colors are transcendental); d
 
 **Theory-independent encodings.** For `OR`, `SET-*`, `REL-JOIN`, `BAG-*`, `ARR-EXP`, `ARR-INL` and `SEP`, the verdict does not depend on the element theory. The `UF` element theory adds `distinct(E₀, …)`, which is exactly the `AllDifferent_k(c)` of the definition, so it changes nothing. `BOOL` fails whenever more than 2 elements are needed.
 
+## Strategies
+
+The graph [strategies](README.md#strategies) need the encoding's K colors as terms to fix a node's color (`clique`) or repair a removed node (`peel`). Every encoding has them except `UF-CARD`, `BAG-CARD`, `NLRA-SQRT`, `NLRA-ROOTS` and the four trig encodings (and in Z3 `UF-CARD`, `NLRA-SQRT`, `NLRA-ROOTS`). Note how this differs from being a k-colorer: `BOOL-DIRECT`, `SET-CLASSES` and `REL-JOIN` are not colorers but can still fix a node's color, while `NLRA-SQRT` and the trig encodings are colorers whose colors (√c, multiples of π) are not terms the solver can write down.
+
 ## Summary
 
 | | Encodings |

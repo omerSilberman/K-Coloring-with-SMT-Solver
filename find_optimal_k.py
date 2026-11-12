@@ -8,6 +8,8 @@ import shutil
 import subprocess
 import heapq
 import re
+import select
+import threading
 from pathlib import Path
 
 try:
@@ -87,6 +89,56 @@ def greedy_clique_lower_bound(num_nodes, adj, starts=50):
     return best
 
 # =============================================================================
+# 1b. KEYBOARD CONTROLS
+# =============================================================================
+class Controls:
+    """Single-key commands read while the script runs: `s` skips the current graph (the
+    solver call is stopped, and what was found so far is saved as FEASIBLE), `q` does the
+    same and then stops. Only active when stdin is a terminal; Ctrl+C still aborts."""
+
+    def __init__(self):
+        self.skip = threading.Event()
+        self.quit = threading.Event()
+        self.active = False
+        self._done = threading.Event()
+        self._saved = None
+        try:
+            import termios, tty
+            if not sys.stdin.isatty():
+                return
+            self._fd = sys.stdin.fileno()
+            self._saved = termios.tcgetattr(self._fd)
+            tty.setcbreak(self._fd)  # keys arrive without Enter; Ctrl+C still works
+        except Exception:
+            return
+        self.active = True
+        threading.Thread(target=self._listen, daemon=True).start()
+
+    def _listen(self):
+        while not self._done.is_set():
+            ready, _, _ = select.select([self._fd], [], [], 0.2)
+            if not ready:
+                continue
+            key = os.read(self._fd, 1).decode(errors="ignore").lower()
+            if key == "s" and not self.skip.is_set():
+                print("\n      [s] skipping this graph...", flush=True)
+                self.skip.set()
+            elif key == "q" and not self.quit.is_set():
+                print("\n      [q] stopping after this graph is saved...", flush=True)
+                self.quit.set()
+                self.skip.set()
+
+    def stopped(self):
+        return self.skip.is_set()
+
+    def close(self):
+        self._done.set()
+        if self._saved is not None:
+            import termios
+            termios.tcsetattr(self._fd, termios.TCSADRAIN, self._saved)
+            self._saved = None
+
+# =============================================================================
 # 2. SOLVER ROUTINES
 # =============================================================================
 # Every solver returns (k, status, source, proof):
@@ -98,7 +150,7 @@ def greedy_clique_lower_bound(num_nodes, adj, starts=50):
 #           or "clique" (the graph has a clique of size k, so fewer colors are impossible)
 # Both solvers start from a known k-coloring (known_k) and never search below the
 # clique lower bound.
-def solve_with_ortools(num_nodes, edges, timeout_sec, known_k, known_source, clique):
+def solve_with_ortools(num_nodes, edges, timeout_sec, known_k, known_source, clique, controls=None):
     upper = known_k - 1
     model = cp_model.CpModel()
     max_color = model.NewIntVar(clique, upper, 'max_color')
@@ -116,7 +168,18 @@ def solve_with_ortools(num_nodes, edges, timeout_sec, known_k, known_source, cli
     solver = cp_model.CpSolver()
     solver.parameters.max_time_in_seconds = timeout_sec
 
-    status = solver.Solve(model)
+    # a skip key stops the search; the best coloring found so far is kept
+    finished = threading.Event()
+    def watch():
+        while not finished.wait(0.2):
+            if controls and controls.stopped():
+                solver.stop_search()
+                return
+    threading.Thread(target=watch, daemon=True).start()
+    try:
+        status = solver.Solve(model)
+    finally:
+        finished.set()
     if status in (cp_model.OPTIMAL, cp_model.FEASIBLE):
         k = int(solver.ObjectiveValue())
         if k == clique:
@@ -139,36 +202,76 @@ def colors_in_model(output):
     values = {parts[i + 1].strip() for i in range(1, len(parts) - 1, 2) if re.fullmatch(r"node_\d+", parts[i])}
     return len(values) or None
 
-def solve_with_smt_binary(filepath, binary_path, theory, known_k, known_source, timeout_sec, clique):
-    # known_k colors are known to work; ask for k-1 colors until UNSAT. When the solver finds a
-    # coloring, it may use fewer than k-1 colors, so jump straight to the number it used.
-    best_k, source = known_k, known_source
-
-    while best_k > clique:
-        print(f"      -> Testing K={best_k - 1}...", end=" ", flush=True)
-        cmd = [binary_path, theory, filepath, str(best_k - 1), "--model"]
-
+def smt_call(cmd, timeout_sec, controls):
+    """Runs one solver call. Returns ("SAT", colors used), ("UNSAT", None), ("TIMEOUT", None),
+    ("UNKNOWN", None) for a crash or UNKNOWN, or ("SKIPPED", None) when the user skipped."""
+    proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True)
+    deadline = time.time() + timeout_sec
+    while True:
         try:
-            result = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout_sec)
-            output = result.stdout
-
-            if "UNSAT" in output:
-                print("UNSAT! Found optimal.")
-                return best_k, "OPTIMAL", source, "UNSAT"
-            elif "SAT" in output:
-                used = min(colors_in_model(output) or best_k - 1, best_k - 1)
-                print(f"SAT! (the coloring uses only {used} colors)" if used < best_k - 1 else "SAT!")
-                best_k, source = used, "SAT"
-            else:
-                print("CRASH/UNKNOWN.")
-                break
-        except subprocess.TimeoutExpired:
-            print("TIMEOUT.")
+            output, _ = proc.communicate(timeout=0.2)
             break
-    else:
-        # best_k reached the clique size, so fewer colors are impossible
-        return best_k, "OPTIMAL", source, "clique"
+        except subprocess.TimeoutExpired:
+            skipped = controls is not None and controls.stopped()
+            if skipped or time.time() > deadline:
+                proc.kill()
+                proc.communicate()
+                return ("SKIPPED" if skipped else "TIMEOUT"), None
+    # the answer is a line of its own (strategies print other lines before it)
+    status = next((l.strip() for l in output.splitlines() if l.strip() in ("SAT", "UNSAT", "UNKNOWN")), None)
+    if status == "SAT":
+        return "SAT", colors_in_model(output)
+    if status == "UNSAT":
+        return "UNSAT", None
+    return "UNKNOWN", None
 
+def describe(outcome, used, asked):
+    if outcome == "SAT":
+        return f"SAT! (the coloring uses only {used} colors)" if used < asked else "SAT!"
+    return {"UNSAT": "UNSAT!", "TIMEOUT": "TIMEOUT.", "UNKNOWN": "CRASH/UNKNOWN.", "SKIPPED": "SKIPPED."}[outcome]
+
+def solve_with_smt_binary(filepath, binary_path, theory, known_k, known_source, timeout_sec, clique,
+                          strategies=(), search="linear", controls=None):
+    """Smallest K with an SMT encoding, starting from a known coloring with known_k colors.
+
+    linear: ask for k-1 colors until UNSAT. When the solver finds a coloring, it may use
+            fewer than k-1 colors, so jump straight to the number it used. Stops at the
+            first timeout.
+    binary: keep the range [low, best_k] that holds the optimum (low starts at the clique
+            size) and test its middle: SAT lowers best_k (to the colors actually used), UNSAT
+            proves every K <= middle impossible. A timeout leaves the middle unresolved, so
+            the search moves to the part above it, which is closer to the known coloring and
+            usually easier; the result is OPTIMAL only if best_k-1 itself was proven UNSAT."""
+    def command(k):
+        cmd = [binary_path, theory, filepath, str(k), "--model"]
+        for strategy in strategies:
+            cmd += ["--strategy", strategy]
+        return cmd
+
+    best_k, source = known_k, known_source
+    proven_low = clique  # every K below this is impossible
+    low = clique         # the search's lower end (above proven_low after a timeout)
+    proof = "clique"
+    while low < best_k:
+        k = best_k - 1 if search == "linear" else (low + best_k) // 2
+        rng = "" if search == "linear" else f" (range {low}..{best_k})"
+        print(f"      -> Testing K={k}{rng}...", end=" ", flush=True)
+        outcome, used = smt_call(command(k), timeout_sec, controls)
+        used = min(used or k, k)
+        print(describe(outcome, used, k))
+        if outcome == "SAT":
+            best_k, source = used, "SAT"
+        elif outcome == "UNSAT":
+            low = k + 1
+            if k + 1 > proven_low:
+                proven_low, proof = k + 1, "UNSAT"
+        elif outcome == "SKIPPED" or search == "linear":
+            break
+        else:
+            low = k + 1  # unresolved: look above it
+
+    if proven_low >= best_k:
+        return best_k, "OPTIMAL", source, proof
     return best_k, "FEASIBLE", source, None
 
 # =============================================================================
@@ -188,7 +291,8 @@ def previous_result(entry):
         return entry, "FEASIBLE", "previous run"
     return entry.get("k"), entry.get("status"), entry.get("source", "previous run")
 
-def run_discovery(benchmark_dir="benchmarks", solver_mode="OR-TOOLS", fresh_start=False, timeout_sec=None):
+def run_discovery(benchmark_dir="benchmarks", solver_mode="OR-TOOLS", fresh_start=False, timeout_sec=None, strategies=(),
+                  search="linear"):
     files = []
     for ext in ('*.col', '*.clq'):
         files.extend(glob.glob(os.path.join(benchmark_dir, '**', ext), recursive=True))
@@ -211,10 +315,31 @@ def run_discovery(benchmark_dir="benchmarks", solver_mode="OR-TOOLS", fresh_star
     use_ortools = solver_mode == "OR-TOOLS" and HAS_ORTOOLS
     if timeout_sec is None:
         timeout_sec = 20.0 if use_ortools else 60.0
+    if use_ortools and strategies:
+        print("Note: --strategy applies to SMT theories only; ignored with OR-TOOLS.")
+    if use_ortools and search != "linear":
+        print("Note: --search applies to SMT theories only; OR-TOOLS minimizes K itself.")
     print(f"--- Starting Discovery on {total_files} files (Mode: {solver_mode}, timeout: {timeout_sec:g}s"
-          f"{' per call' if not use_ortools else ''}) ---\n")
+          f"{' per call' if not use_ortools else ''}"
+          f"{', ' + search + ' search' if not use_ortools else ''}"
+          f"{', strategies: ' + ' '.join(strategies) if strategies and not use_ortools else ''}) ---")
+    controls = Controls()
+    try:
+        if controls.active:
+            print("--- Keys: [s] skip the current graph, [q] save and stop ---")
+        print()
+        run_files(files, optimal_k_dict, output_file, solver_mode, use_ortools, timeout_sec, strategies, search, controls)
+    finally:
+        controls.close()
+
+def run_files(files, optimal_k_dict, output_file, solver_mode, use_ortools, timeout_sec, strategies, search, controls):
+    total_files = len(files)
 
     for index, filepath in enumerate(files, 1):
+        if controls.quit.is_set():
+            print("Stopped by the user; the results so far are saved.")
+            return
+        controls.skip.clear()
         rel_path = Path(filepath).as_posix()
         filename = Path(filepath).name
 
@@ -255,14 +380,16 @@ def run_discovery(benchmark_dir="benchmarks", solver_mode="OR-TOOLS", fresh_star
         if known_k is None or dsatur_k < known_k:
             known_k, known_source = dsatur_k, "DSATUR"
 
-        if known_k <= clique:
+        if controls.stopped():  # skipped while the bounds were computed
+            opt_k, status_label, source, proof = known_k, "FEASIBLE", known_source, None
+        elif known_k <= clique:
             opt_k, status_label, source, proof = known_k, "OPTIMAL", known_source, "clique"
         elif use_ortools:
             opt_k, status_label, source, proof = solve_with_ortools(
-                num_nodes, edges, timeout_sec, known_k, known_source, clique)
+                num_nodes, edges, timeout_sec, known_k, known_source, clique, controls)
         else:
             opt_k, status_label, source, proof = solve_with_smt_binary(
-                filepath, "./build/smt_solver_cvc5", solver_mode, known_k, known_source, timeout_sec, clique)
+                filepath, "./build/smt_solver_cvc5", solver_mode, known_k, known_source, timeout_sec, clique, strategies, search, controls)
 
         elapsed = time.time() - start_time
 
@@ -272,6 +399,8 @@ def run_discovery(benchmark_dir="benchmarks", solver_mode="OR-TOOLS", fresh_star
             how = f"OPTIMAL, K-1 ruled out by {proof}"
         else:
             how = "FEASIBLE"
+        if controls.stopped():
+            how += ", skipped by the user"
         print(f"   => K: {opt_k} [{how}; coloring from {source}] (Elapsed: {elapsed:.2f}s)\n")
         entry = {"k": opt_k, "status": status_label, "source": source}
         if proof:
@@ -302,6 +431,17 @@ results (optimal_k_values.json), one entry per graph:
   proof   (OPTIMAL only) what ruled out k-1: UNSAT, OR-TOOLS, or clique
   clique  size of the clique found (a lower bound on K)
 
+search (--search, SMT modes):
+  linear            K-1, K-2, ... from the known coloring until UNSAT; stops at the first timeout.
+  binary            tests the middle of [clique, K]: SAT lowers K, UNSAT raises the lower end.
+                    Fewer calls when the bounds are far apart; UNSAT calls far below the optimum
+                    are usually easy. A timeout makes it continue above the unresolved K.
+
+keys (while running in a terminal):
+  s                 skip the current graph: stop the solver and save what was found as FEASIBLE
+                    (so a later run without --fresh tries it again)
+  q                 the same, then stop
+
 resuming (without --fresh):
   OPTIMAL graphs are skipped. FEASIBLE graphs are retried starting from k-1, so a rerun with a
   larger --timeout can turn them into OPTIMAL. Graphs skipped for size are reconsidered.
@@ -310,6 +450,9 @@ resuming (without --fresh):
 examples:
   python3 find_optimal_k.py BV benchmarks --fresh     # start over with the BV encoding
   python3 find_optimal_k.py BV --timeout 300          # retry the FEASIBLE ones with 5 minutes per call
+  python3 find_optimal_k.py BV --strategy dominated --strategy peel --strategy clique
+  python3 find_optimal_k.py BV --search binary        # binary search between the clique and the coloring
+                                                      # the same, shrinking the graph and fixing a clique first
 """ % EDGE_LIMIT
 
 if __name__ == "__main__":
@@ -325,7 +468,13 @@ if __name__ == "__main__":
                         help="time limit per solver call (default: 60 for SMT theories, 20 for OR-TOOLS)")
     parser.add_argument("--fresh", action="store_true",
                         help="back up optimal_k_values.json and recompute every graph from scratch")
+    parser.add_argument("--strategy", action="append", default=[], metavar="NAME[:PARAMS]",
+                        help="strategy passed to every SMT call (repeatable): dsatur, dominated, peel, clique, "
+                             "clique:exact; see README, \"Strategies\"")
+    parser.add_argument("--search", choices=["linear", "binary"], default="linear",
+                        help="how SMT modes look for K: linear (K-1, K-2, ... down from the known coloring; "
+                             "default) or binary (halve the range between the clique and the coloring)")
     args = parser.parse_args()
 
     run_discovery(benchmark_dir=args.benchmark_dir, solver_mode=args.mode,
-                  fresh_start=args.fresh, timeout_sec=args.timeout)
+                  fresh_start=args.fresh, timeout_sec=args.timeout, strategies=args.strategy, search=args.search)

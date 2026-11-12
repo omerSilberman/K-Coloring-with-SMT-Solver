@@ -18,8 +18,10 @@ target_link_libraries(smt_solver PRIVATE SmtSwitch::smt-switch-cvc5)
 
 # Native cvc5 API version (all theories): every .cpp in cvc5/, one file per theory family.
 # CONFIGURE_DEPENDS picks up new files on the next build without re-running cmake by hand.
+# The strategies (common/strategies/) are engine-independent and built into every engine.
+file(GLOB STRATEGY_SOURCES CONFIGURE_DEPENDS "${CMAKE_SOURCE_DIR}/common/strategies/*.cpp")
 file(GLOB CVC5_SOURCES CONFIGURE_DEPENDS "${CMAKE_SOURCE_DIR}/cvc5/*.cpp")
-add_executable(smt_solver_cvc5 ${CVC5_SOURCES})
+add_executable(smt_solver_cvc5 ${CVC5_SOURCES} ${STRATEGY_SOURCES})
 target_link_libraries(smt_solver_cvc5 PRIVATE cvc5::cvc5)
 # cvc5::cvc5 names cadical, picpoly and picpolyxx without a path; they sit next to libcvc5.
 target_link_directories(smt_solver_cvc5 PRIVATE "${cvc5_DIR}/../..")
@@ -33,7 +35,7 @@ target_compile_definitions(smt_solver_cvc5 PRIVATE
 set(Z3_ROOT "$ENV{HOME}/z3/z3-5.1.0-x64-glibc-2.39" CACHE PATH "Path to an unpacked Z3 release")
 if(EXISTS "${Z3_ROOT}/include/z3++.h")
     file(GLOB Z3_SOURCES CONFIGURE_DEPENDS "${CMAKE_SOURCE_DIR}/z3/*.cpp")
-    add_executable(smt_solver_z3 ${Z3_SOURCES})
+    add_executable(smt_solver_z3 ${Z3_SOURCES} ${STRATEGY_SOURCES})
     target_include_directories(smt_solver_z3 SYSTEM PRIVATE "${Z3_ROOT}/include")  # SYSTEM: no warnings from z3++.h
     target_link_libraries(smt_solver_z3 PRIVATE "${Z3_ROOT}/bin/libz3.so")
     # Find libz3.so at run time without LD_LIBRARY_PATH

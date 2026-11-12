@@ -16,6 +16,8 @@ namespace {
 class FpColorer : public Cvc5Colorer {
 public:
     using Cvc5Colorer::Cvc5Colorer;
+public:
+    bool supports_colors() const override { return true; }
 protected:
     void configure_theory() override { solver.setLogic("QF_FP"); }
     void build_variables_and_bounds() override {
@@ -33,6 +35,9 @@ protected:
         };
         cvc5::Term lower = float_with_fraction(0);      // 1.0
         cvc5::Term upper = float_with_fraction(K - 1);  // 1 + (K-1)/2^23
+        if (strategies_given()) {
+            for (int c = 0; c < K; c++) colors.push_back(float_with_fraction(c));
+        }
 
         for (int i = 1; i <= num_nodes; i++) {
             node_vars[i] = tm.mkConst(fp_sort, "node_" + to_string(i));

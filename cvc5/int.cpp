@@ -10,9 +10,14 @@ namespace {
 class LiaColorer : public Cvc5Colorer {
 public:
     using Cvc5Colorer::Cvc5Colorer;
+public:
+    bool supports_colors() const override { return true; }
 protected:
     void configure_theory() override { solver.setLogic("QF_LIA"); }
     void build_variables_and_bounds() override {
+        if (strategies_given()) {
+            for (int c = 1; c <= K; c++) colors.push_back(tm.mkInteger(c));
+        }
         cvc5::Sort int_sort = tm.getIntegerSort();
         cvc5::Term one = tm.mkInteger(1);
         cvc5::Term k_term = tm.mkInteger(K);
@@ -37,6 +42,14 @@ private:
     cvc5::Term zero;
 public:
     using Cvc5Colorer::Cvc5Colorer;
+public:
+    bool supports_colors() const override { return true; }
+    // the colors are node - zero = 1..K
+    void fix_color(int node, int color) override {
+        cvc5::Term diff = tm.mkTerm(cvc5::Kind::SUB, {node_vars[node], zero});
+        solver.assertFormula(tm.mkTerm(cvc5::Kind::EQUAL, {diff, tm.mkInteger(color + 1)}));
+    }
+    string color_value(int color) override { return to_string(color + 1); }
 protected:
     void configure_theory() override { solver.setLogic("QF_IDL"); }
     void build_variables_and_bounds() override {
@@ -70,6 +83,13 @@ protected:
 class IntModColorer : public Cvc5Colorer {
 public:
     using Cvc5Colorer::Cvc5Colorer;
+public:
+    bool supports_colors() const override { return true; }
+    // the colors are the residues 0..K-1
+    void fix_color(int node, int color) override {
+        solver.assertFormula(tm.mkTerm(cvc5::Kind::EQUAL, {residue(node_vars[node]), tm.mkInteger(color)}));
+    }
+    string color_value(int color) override { return to_string(color); }
 protected:
     void configure_theory() override { solver.setLogic("QF_LIA"); }
     void build_variables_and_bounds() override {
@@ -102,9 +122,14 @@ private:
     vector<cvc5::Term> exponents;
 public:
     using Cvc5Colorer::Cvc5Colorer;
+public:
+    bool supports_colors() const override { return true; }
 protected:
     void configure_theory() override { solver.setLogic("ALL"); }
     void build_variables_and_bounds() override {
+        if (strategies_given()) {
+            for (int c = 0; c < K; c++) colors.push_back(tm.mkTerm(cvc5::Kind::POW2, {tm.mkInteger(c)}));
+        }
         cvc5::Sort int_sort = tm.getIntegerSort();
         exponents.resize(num_nodes + 1);
         for (int i = 1; i <= num_nodes; ++i) {

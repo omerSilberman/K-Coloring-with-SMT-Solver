@@ -41,6 +41,8 @@ private:
 public:
     BagSubColorer(int k, bool model, bool print, unique_ptr<ElementTheory> elements, bool unary)
         : BagColorer(k, model, print, std::move(elements)), unary(unary) {}
+public:
+    bool supports_colors() const override { return true; }
 protected:
     void build_variables_and_bounds() override {
         vector<int> multiplicities;
@@ -54,6 +56,19 @@ protected:
         vector<cvc5::Term> parts;
         for (size_t i = 0; i < multiplicities.size(); i++) parts.push_back(bag_of(domain.elements[i], multiplicities[i]));
         cvc5::Term B = disjoint_union(parts, bag_sort);
+        if (strategies_given()) {
+            // color c: its mixed-radix digits are the counts of e_1, ..., e_L
+            for (int c = 0; c < K; c++) {
+                vector<cvc5::Term> digits;
+                int rest = c;
+                for (size_t i = 0; i < multiplicities.size(); i++) {
+                    int count = rest % (multiplicities[i] + 1);
+                    rest /= multiplicities[i] + 1;
+                    if (count) digits.push_back(bag_of(domain.elements[i], count));
+                }
+                colors.push_back(disjoint_union(digits, bag_sort));
+            }
+        }
 
         for (int i = 1; i <= num_nodes; i++) {
             node_vars[i] = tm.mkConst(bag_sort, "node_" + to_string(i));
@@ -93,9 +108,12 @@ protected:
 class BagNeighborsColorer : public BagColorer {
 public:
     using BagColorer::BagColorer;
+public:
+    bool supports_colors() const override { return true; }
 protected:
     void build_variables_and_bounds() override {
         ElementDomain domain = make_domain(K);
+        colors = domain.elements;
         cvc5::Sort bag_sort = tm.mkBagSort(domain.sort);
         for (int i = 1; i <= num_nodes; i++) {
             node_vars[i] = tm.mkConst(domain.sort, "node_" + to_string(i));

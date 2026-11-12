@@ -44,3 +44,18 @@ inline std::string substring_word(int K) {
     }
     return std::string(K - 1, 'a');
 }
+
+#include <algorithm>
+#include <set>
+#include <vector>
+
+// The distinct substrings of word, the empty one included, shortest first (STR-SUB's colors)
+inline std::vector<std::string> distinct_substrings(const std::string& word) {
+    std::set<std::string> found{""};
+    for (size_t i = 0; i < word.size(); i++) {
+        for (size_t len = 1; i + len <= word.size(); len++) found.insert(word.substr(i, len));
+    }
+    std::vector<std::string> out(found.begin(), found.end());
+    std::stable_sort(out.begin(), out.end(), [](const std::string& a, const std::string& b) { return a.size() < b.size(); });
+    return out;
+}

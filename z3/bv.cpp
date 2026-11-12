@@ -10,9 +10,23 @@ namespace {
 class BvColorer : public Z3Colorer {
 public:
     using Z3Colorer::Z3Colorer;
+public:
+    bool supports_colors() const override { return true; }
 protected:
     void configure_theory() override { set_logic("QF_BV"); }
     void build_variables_and_bounds() override {
+        if (strategies_given()) {
+            // colors 0..K-1 at width w when K = 2^w (K >= 2), otherwise 1..K
+            if (K >= 2 && (K & (K - 1)) == 0) {
+                int w = 0;
+                while ((1 << w) < K) { w++; }
+                for (int c = 0; c < K; c++) colors.push_back(ctx.bv_val(c, w));
+            } else {
+                int w = 1;
+                while ((1 << w) - 1 < K) { w++; }
+                for (int c = 1; c <= K; c++) colors.push_back(ctx.bv_val(c, w));
+            }
+        }
         if (K >= 2 && (K & (K - 1)) == 0) {
             int width = 0;
             while ((1 << width) < K) { width++; }
@@ -37,12 +51,17 @@ protected:
 class BvZeroColorer : public Z3Colorer {
 public:
     using Z3Colorer::Z3Colorer;
+public:
+    bool supports_colors() const override { return true; }
 protected:
     void configure_theory() override { set_logic("QF_BV"); }
     void build_variables_and_bounds() override {
         int width = 1;
         while ((1 << width) < K) { width++; }
         bool needs_bound = (1 << width) != K;
+        if (strategies_given()) {
+            for (int c = 0; c < K; c++) colors.push_back(ctx.bv_val(c, width));
+        }
         z3::expr max_term = ctx.bv_val(K - 1, width);
         for (int i = 1; i <= num_nodes; i++) {
             node_vars[i] = constant("node_" + to_string(i), ctx.bv_sort(width));
@@ -55,6 +74,8 @@ protected:
 class BvAndColorer : public Z3Colorer {
 public:
     using Z3Colorer::Z3Colorer;
+public:
+    bool supports_colors() const override { return true; }
 protected:
     void configure_theory() override { set_logic("QF_BV"); }
     void build_variables_and_bounds() override {
@@ -62,6 +83,9 @@ protected:
         while ((1 << width) < K) { width++; }
         int full = (1 << width) - 1;
         int excluded = (1 << width) - K;
+        if (strategies_given()) {
+            for (int c = 0; c < K; c++) colors.push_back(ctx.bv_val(excluded + c, width));  // E..2^w-1
+        }
 
         z3::expr zero = ctx.bv_val(0, width);
         vector<z3::expr> masks;
@@ -84,6 +108,11 @@ private:
     static const int WIDTH = 32;
 public:
     using Z3Colorer::Z3Colorer;
+public:
+    bool supports_colors() const override { return true; }
+    // the colors are the residues 0..K-1
+    void fix_color(int node, int color) override { solver.add(residue(node_vars[node]) == ctx.bv_val(color, WIDTH)); }
+    string color_value(int color) override { return ctx.bv_val(color, WIDTH).to_string(); }
 protected:
     void configure_theory() override { set_logic("QF_BV"); }
     void build_variables_and_bounds() override {
@@ -107,9 +136,26 @@ protected:
 class BvOneHotColorer : public Z3Colorer {
 public:
     using Z3Colorer::Z3Colorer;
+public:
+    bool supports_colors() const override { return true; }
 protected:
+    // A bit-vector constant from a binary string, most significant bit first (any width)
+    z3::expr bits_value(const string& bits) {
+        vector<bool> b;
+        for (auto it = bits.rbegin(); it != bits.rend(); ++it) b.push_back(*it == '1');
+        unique_ptr<bool[]> raw(new bool[b.size()]);
+        for (size_t i = 0; i < b.size(); i++) raw[i] = b[i];
+        return ctx.bv_val((unsigned)b.size(), raw.get());
+    }
     void configure_theory() override { set_logic("QF_BV"); }
     void build_variables_and_bounds() override {
+        if (strategies_given()) {
+            for (int c = 0; c < K; c++) {
+                string bits(K, '0');
+                bits[K - 1 - c] = '1';  // only bit c
+                colors.push_back(bits_value(bits));
+            }
+        }
         z3::expr zero = ctx.bv_val(0, K), one = ctx.bv_val(1, K);
         for (int i = 1; i <= num_nodes; i++) {
             z3::expr x = constant("node_" + to_string(i), ctx.bv_sort(K));
@@ -131,10 +177,19 @@ private:
 public:
     BvOrderColorer(int k, bool model, bool print, bool use_shift)
         : Z3Colorer(k, model, print), use_shift(use_shift) {}
+public:
+    bool supports_colors() const override { return true; }
 protected:
     void configure_theory() override { set_logic("QF_BV"); }
     void build_variables_and_bounds() override {
         int width = max(K - 1, 1);
+        if (strategies_given()) {
+            for (int c = 0; c < K; c++) {
+                unique_ptr<bool[]> raw(new bool[width]);
+                for (int b = 0; b < width; b++) raw[b] = b < c;  // the lowest c bits
+                colors.push_back(ctx.bv_val((unsigned)width, raw.get()));
+            }
+        }
         z3::expr zero = ctx.bv_val(0, width), one = ctx.bv_val(1, width);
         for (int i = 1; i <= num_nodes; i++) {
             z3::expr x = constant("node_" + to_string(i), ctx.bv_sort(width));

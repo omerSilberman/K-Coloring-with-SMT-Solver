@@ -112,10 +112,10 @@ def run_smt(binary_path, graph_path, k, produce_model, timeout):
         
         status, model_str = "UNKNOWN", ""
         for line in result.stdout.split('\n'):
-            if "SAT" in line and "UNSAT" not in line:
-                status = "SAT"
-            elif "UNSAT" in line:
-                status = "UNSAT"
+            # the result is a line of its own (other lines, e.g. STRATEGY reports, may
+            # contain these words)
+            if line.strip() in ("SAT", "UNSAT", "UNKNOWN"):
+                status = line.strip()
             elif line.startswith("MODEL:"):
                 model_str = line.replace("MODEL:", "").strip()
                 

@@ -33,7 +33,7 @@
         "source": "greedy",
         "clique": 2,
         "solver": "BV",
-        "timeout": 60.0
+        "timeout": 300.0
     },
     "benchmarks/DIMACS/1-Insertions_6.col": {
         "k": 7,
@@ -41,7 +41,7 @@
         "source": "greedy",
         "clique": 2,
         "solver": "BV",
-        "timeout": 60.0
+        "timeout": 300.0
     },
     "benchmarks/DIMACS/2-FullIns_3.col": {
         "k": 5,
@@ -77,7 +77,7 @@
         "source": "greedy",
         "clique": 2,
         "solver": "BV",
-        "timeout": 60.0
+        "timeout": 300.0
     },
     "benchmarks/DIMACS/2-Insertions_5.col": {
         "k": 6,
@@ -85,7 +85,7 @@
         "source": "greedy",
         "clique": 2,
         "solver": "BV",
-        "timeout": 60.0
+        "timeout": 300.0
     },
     "benchmarks/DIMACS/3-FullIns_3.col": {
         "k": 6,
@@ -103,11 +103,12 @@
     },
     "benchmarks/DIMACS/3-FullIns_5.col": {
         "k": 8,
-        "status": "FEASIBLE",
+        "status": "OPTIMAL",
         "source": "SAT",
+        "proof": "UNSAT",
         "clique": 5,
         "solver": "BV",
-        "timeout": 60.0
+        "timeout": 300.0
     },
     "benchmarks/DIMACS/3-Insertions_3.col": {
         "k": 4,
@@ -122,7 +123,7 @@
         "source": "greedy",
         "clique": 2,
         "solver": "BV",
-        "timeout": 60.0
+        "timeout": 300.0
     },
     "benchmarks/DIMACS/3-Insertions_5.col": {
         "k": 6,
@@ -130,7 +131,7 @@
         "source": "greedy",
         "clique": 2,
         "solver": "BV",
-        "timeout": 60.0
+        "timeout": 300.0
     },
     "benchmarks/DIMACS/4-FullIns_3.col": {
         "k": 7,
@@ -148,11 +149,12 @@
     },
     "benchmarks/DIMACS/4-FullIns_5.col": {
         "k": 9,
-        "status": "FEASIBLE",
+        "status": "OPTIMAL",
         "source": "SAT",
+        "proof": "UNSAT",
         "clique": 6,
         "solver": "BV",
-        "timeout": 60.0
+        "timeout": 300.0
     },
     "benchmarks/DIMACS/4-Insertions_3.col": {
         "k": 4,
@@ -167,7 +169,7 @@
         "source": "greedy",
         "clique": 2,
         "solver": "BV",
-        "timeout": 60.0
+        "timeout": 300.0
     },
     "benchmarks/DIMACS/5-FullIns_3.col": {
         "k": 8,
@@ -188,12 +190,12 @@
         "status": "SKIPPED_TOO_LARGE"
     },
     "benchmarks/DIMACS/C125.9.clq": {
-        "k": 47,
+        "k": 45,
         "status": "FEASIBLE",
         "source": "SAT",
         "clique": 33,
         "solver": "BV",
-        "timeout": 60.0
+        "timeout": 300.0
     },
     "benchmarks/DIMACS/C2000.5.clq": {
         "k": null,
@@ -204,12 +206,12 @@
         "status": "SKIPPED_TOO_LARGE"
     },
     "benchmarks/DIMACS/C250.9.clq": {
-        "k": 92,
+        "k": 87,
         "status": "FEASIBLE",
-        "source": "DSATUR",
+        "source": "SAT",
         "clique": 42,
         "solver": "BV",
-        "timeout": 60.0
+        "timeout": 300.0
     },
     "benchmarks/DIMACS/C4000.5.clq": {
         "k": null,
@@ -221,15 +223,15 @@
         "source": "DSATUR",
         "clique": 52,
         "solver": "BV",
-        "timeout": 60.0
+        "timeout": 300.0
     },
     "benchmarks/DIMACS/DSJC1000.1.col": {
-        "k": 27,
+        "k": 25,
         "status": "FEASIBLE",
-        "source": "DSATUR",
+        "source": "SAT",
         "clique": 5,
         "solver": "BV",
-        "timeout": 60.0
+        "timeout": 300.0
     },
     "benchmarks/DIMACS/DSJC1000.5.clq": {
         "k": null,
@@ -256,15 +258,15 @@
         "source": "SAT",
         "clique": 10,
         "solver": "BV",
-        "timeout": 60.0
+        "timeout": 300.0
     },
     "benchmarks/DIMACS/DSJC125.9.col": {
-        "k": 49,
+        "k": 45,
         "status": "FEASIBLE",
         "source": "SAT",
         "clique": 34,
         "solver": "BV",
-        "timeout": 60.0
+        "timeout": 300.0
     },
     "benchmarks/DIMACS/DSJC250.1.col": {
         "k": 9,
@@ -272,23 +274,23 @@
         "source": "SAT",
         "clique": 4,
         "solver": "BV",
-        "timeout": 60.0
+        "timeout": 300.0
     },
     "benchmarks/DIMACS/DSJC250.5.col": {
-        "k": 35,
+        "k": 34,
         "status": "FEASIBLE",
         "source": "SAT",
         "clique": 12,
         "solver": "BV",
-        "timeout": 60.0
+        "timeout": 300.0
     },
     "benchmarks/DIMACS/DSJC250.9.col": {
-        "k": 92,
+        "k": 85,
         "status": "FEASIBLE",
-        "source": "DSATUR",
+        "source": "SAT",
         "clique": 41,
         "solver": "BV",
-        "timeout": 60.0
+        "timeout": 300.0
     },
     "benchmarks/DIMACS/DSJC500.1.col": {
         "k": 14,
@@ -296,23 +298,23 @@
         "source": "SAT",
         "clique": 5,
         "solver": "BV",
-        "timeout": 60.0
+        "timeout": 300.0
     },
     "benchmarks/DIMACS/DSJC500.5.clq": {
-        "k": 65,
+        "k": 64,
         "status": "FEASIBLE",
-        "source": "DSATUR",
+        "source": "SAT",
         "clique": 13,
         "solver": "BV",
-        "timeout": 60.0
+        "timeout": 300.0
     },
     "benchmarks/DIMACS/DSJC500.5.col": {
-        "k": 65,
+        "k": 64,
         "status": "FEASIBLE",
-        "source": "DSATUR",
+        "source": "SAT",
         "clique": 13,
         "solver": "BV",
-        "timeout": 60.0
+        "timeout": 300.0
     },
     "benchmarks/DIMACS/DSJC500.9.col": {
         "k": 170,
@@ -320,7 +322,7 @@
         "source": "DSATUR",
         "clique": 52,
         "solver": "BV",
-        "timeout": 60.0
+        "timeout": 300.0
     },
     "benchmarks/DIMACS/DSJR500.1.col": {
         "k": 12,
@@ -332,28 +334,29 @@
         "timeout": 60.0
     },
     "benchmarks/DIMACS/DSJR500.1c.col": {
-        "k": 90,
-        "status": "FEASIBLE",
-        "source": "DSATUR",
+        "k": 85,
+        "status": "OPTIMAL",
+        "source": "SAT",
+        "proof": "UNSAT",
         "clique": 78,
         "solver": "BV",
-        "timeout": 60.0
+        "timeout": 300.0
     },
     "benchmarks/DIMACS/DSJR500.5.col": {
-        "k": 130,
+        "k": 125,
         "status": "FEASIBLE",
-        "source": "DSATUR",
+        "source": "SAT",
         "clique": 116,
         "solver": "BV",
-        "timeout": 60.0
+        "timeout": 300.0
     },
     "benchmarks/DIMACS/MANN_a27.clq": {
-        "k": 140,
+        "k": 137,
         "status": "FEASIBLE",
-        "source": "DSATUR",
+        "source": "SAT",
         "clique": 126,
         "solver": "BV",
-        "timeout": 60.0
+        "timeout": 300.0
     },
     "benchmarks/DIMACS/MANN_a45.clq": {
         "k": null,
@@ -369,7 +372,7 @@
         "source": "SAT",
         "clique": 8,
         "solver": "BV",
-        "timeout": 60.0
+        "timeout": 300.0
     },
     "benchmarks/DIMACS/anna.col": {
         "k": 11,
@@ -413,23 +416,23 @@
         "source": "SAT",
         "clique": 11,
         "solver": "BV",
-        "timeout": 60.0
+        "timeout": 300.0
     },
     "benchmarks/DIMACS/brock200_4.clq": {
-        "k": 40,
+        "k": 38,
         "status": "FEASIBLE",
         "source": "SAT",
         "clique": 16,
         "solver": "BV",
-        "timeout": 60.0
+        "timeout": 300.0
     },
     "benchmarks/DIMACS/brock400_2.clq": {
-        "k": 93,
+        "k": 91,
         "status": "FEASIBLE",
-        "source": "DSATUR",
+        "source": "SAT",
         "clique": 24,
         "solver": "BV",
-        "timeout": 60.0
+        "timeout": 300.0
     },
     "benchmarks/DIMACS/brock400_4.clq": {
         "k": 91,
@@ -437,7 +440,7 @@
         "source": "DSATUR",
         "clique": 24,
         "solver": "BV",
-        "timeout": 60.0
+        "timeout": 300.0
     },
     "benchmarks/DIMACS/brock800_2.clq": {
         "k": null,
@@ -458,11 +461,12 @@
     },
     "benchmarks/DIMACS/fpsol2.i.1.col": {
         "k": 65,
-        "status": "FEASIBLE",
+        "status": "OPTIMAL",
         "source": "DSATUR",
+        "proof": "UNSAT",
         "clique": 60,
         "solver": "BV",
-        "timeout": 60.0
+        "timeout": 300.0
     },
     "benchmarks/DIMACS/fpsol2.i.2.col": {
         "k": 30,
@@ -492,20 +496,20 @@
         "timeout": 60.0
     },
     "benchmarks/DIMACS/gen200_p0.9_44.clq": {
-        "k": 60,
+        "k": 51,
         "status": "FEASIBLE",
         "source": "SAT",
         "clique": 38,
         "solver": "BV",
-        "timeout": 60.0
+        "timeout": 300.0
     },
     "benchmarks/DIMACS/gen200_p0.9_55.clq": {
-        "k": 69,
+        "k": 63,
         "status": "FEASIBLE",
         "source": "SAT",
         "clique": 41,
         "solver": "BV",
-        "timeout": 60.0
+        "timeout": 300.0
     },
     "benchmarks/DIMACS/gen400_p0.9_55.clq": {
         "k": 102,
