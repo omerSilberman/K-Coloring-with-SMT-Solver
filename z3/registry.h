@@ -16,6 +16,7 @@ void register_real(Z3Registry& registry);       // real.cpp
 void register_uf(Z3Registry& registry);         // uf.cpp
 void register_datatypes(Z3Registry& registry);  // datatypes.cpp
 void register_bool(Z3Registry& registry);       // bool.cpp
+void register_rep(Z3Registry& registry);        // rep.cpp
 void register_strings(Z3Registry& registry);    // strings.cpp
 void register_sets(Z3Registry& registry);       // sets.cpp
 void register_arrays(Z3Registry& registry);     // arrays.cpp

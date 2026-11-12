@@ -123,6 +123,8 @@ The **Name** is the first argument passed to the solver binaries.
 | `UF-CARD` | UF + cardinality | `QF_UFC` | Uninterpreted sort `Color` with **no** domain constraint per node; a single `(_ fmf.card Color K)` says the sort has at most K elements. Handled by cvc5's cardinality solver. See [`UF-CARD`](#uf-card-the-sorts-size-is-the-domain) | |
 | `BOOL-DIRECT` | Propositional | `QF_SAT` | No theory: K Booleans `c_i_j` ("node i has color j") per node, the clause `c_i_1 ∨ ... ∨ c_i_K`, and `¬c_u_j ∨ ¬c_v_j` per edge and color. The textbook SAT encoding. See [`BOOL-DIRECT`](#bool-direct-the-plain-sat-encoding) | |
 | `BOOL-DIRECT-AMO` | Propositional | `QF_SAT` | `BOOL-DIRECT` plus the at-most-one clauses `¬c_i_a ∨ ¬c_i_b`, so each node has exactly one color | |
+| `REP` | Propositional | `QF_SAT` | No colors at all: Booleans `r_u_v` ("u represents v", for u < v not adjacent, and `r_v_v`), each node has a representative, edges cannot share one, at most K representatives (a sequential counter in clauses). Z3 also has `REP-PB` (native at-most-K). See [`REP`](#rep-representatives-instead-of-colors) | |
+| `REP-BV` | BV | `QF_BV` | `REP` with one bit-vector per node, its representative's number: `p_v = u → p_u = u`, `p_u ≠ p_v` per edge, `Σ ite(p_v = v, 1, 0) ≤ K` | |
 | `STRING` | STRING | `QF_S` | String `x` equal to one of K distinct literals (`"A"`, `"B"`, ...). `OR-STR` up to the literals | ✓ |
 | `STR-LEX` | STRING | `QF_SLIA` | `len(x) = 1` and `"A" <= x <= chr('A'+K-1)` lexicographically. **K <= 50 only.** | ✓ |
 | `STR-INT` | STRING | `QF_SLIA` | String `x` with `1 <= str.to_int(x) <= K` and `x = str.from_int(str.to_int(x))` (canonical spelling, so `"02"` cannot pose as a second `"2"`) | |

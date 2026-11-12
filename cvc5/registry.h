@@ -16,6 +16,7 @@ void register_ff(Cvc5Registry& registry);         // ff.cpp
 void register_uf(Cvc5Registry& registry);         // uf.cpp
 void register_datatypes(Cvc5Registry& registry);  // datatypes.cpp
 void register_bool(Cvc5Registry& registry);       // bool.cpp
+void register_rep(Cvc5Registry& registry);        // rep.cpp
 void register_strings(Cvc5Registry& registry);    // strings.cpp
 void register_sets(Cvc5Registry& registry);       // sets.cpp
 void register_bags(Cvc5Registry& registry);       // bags.cpp

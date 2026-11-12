@@ -7,7 +7,7 @@
 int main(int argc, char** argv) {
     Z3Registry registry(make_element_theory, element_theory_names());
     for (auto register_theory : {register_int, register_bv, register_fp, register_real, register_uf,
-                                 register_datatypes, register_bool, register_strings, register_sets,
+                                 register_datatypes, register_bool, register_rep, register_strings, register_sets,
                                  register_arrays}) {
         registry.begin_group();
         register_theory(registry);

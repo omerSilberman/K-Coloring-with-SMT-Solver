@@ -22,6 +22,9 @@ const HINTS = {
     "BV-ORDER-SHIFT": "The same order encoding with a purely bitwise domain: (x ≫ 1) & ~x = 0, i.e. no 1 above a 0.",
     "BOOL-DIRECT": "Plain SAT: Booleans c(i, j) = \"node i has color j\", at least one color per node, and ¬c(u, j) ∨ ¬c(v, j) per edge and color. No theory at all.",
     "BOOL-DIRECT-AMO": "BOOL-DIRECT plus at-most-one clauses, so every node gets exactly one color.",
+    "REP": "No color names: each color class is named by its smallest node (its representative). r(u, v) = \"u represents v\" for u < v not adjacent; at most K representatives (a counter in clauses). One description per coloring, so no renamings of the colors to search. The model numbers the classes 1, 2, ...",
+    "REP-PB": "REP with Z3's native pseudo-Boolean at-most-K instead of the counter clauses.",
+    "REP-BV": "REP with one bit-vector per node: p(v) = its representative's number; p(v) = u → p(u) = u, p(u) ≠ p(v) per edge, and Σ [p(v) = v] ≤ K.",
   },
   cvc5: {
     "NLRA-SIN": "cvc5 proves UNSAT here but cannot return SAT models (the roots are irrational). Pick dReal as the solver to get them.",
