@@ -1,0 +1,352 @@
+% ---------------------------------------------------------------------------
+% SMT background
+% ---------------------------------------------------------------------------
+
+% The three references of the opening SMT paragraph, as in the example proposal.
+
+@inproceedings{BarrettST10,
+  author    = {Clark Barrett and Aaron Stump and Cesare Tinelli},
+  title     = {The {SMT-LIB} Standard -- Version 2.0},
+  booktitle = {Proceedings of the 8th International Workshop on Satisfiability Modulo Theories (SMT '10)},
+  address   = {Edinburgh, Scotland},
+  year      = {2010}
+}
+
+@inproceedings{ZhengZG13,
+  author    = {Yunhui Zheng and Xiangyu Zhang and Vijay Ganesh},
+  title     = {{Z3-str}: A {Z3}-Based String Solver for Web Application Analysis},
+  booktitle = {Joint Meeting of the European Software Engineering Conference and the {ACM} {SIGSOFT} Symposium on the Foundations of Software Engineering, {ESEC/FSE} 2013},
+  pages     = {114--124},
+  publisher = {ACM},
+  year      = {2013}
+}
+
+@inproceedings{ReynoldsB16,
+  author    = {Andrew Reynolds and Jasmin Christian Blanchette},
+  title     = {A Decision Procedure for (Co)datatypes in {SMT} Solvers},
+  booktitle = {Proceedings of the Twenty-Fifth International Joint Conference on Artificial Intelligence, {IJCAI} 2016},
+  pages     = {4205--4209},
+  publisher = {IJCAI/AAAI Press},
+  year      = {2016}
+}
+
+@incollection{BarrettSST21,
+  author    = {Clark W. Barrett and Roberto Sebastiani and Sanjit A. Seshia and Cesare Tinelli},
+  title     = {Satisfiability Modulo Theories},
+  booktitle = {Handbook of Satisfiability},
+  series    = {Frontiers in Artificial Intelligence and Applications},
+  volume    = {336},
+  pages     = {1267--1329},
+  publisher = {IOS Press},
+  year      = {2021}
+}
+
+@book{BradleyM07,
+  author    = {Aaron R. Bradley and Zohar Manna},
+  title     = {The Calculus of Computation -- Decision Procedures with Applications to Verification},
+  publisher = {Springer},
+  year      = {2007}
+}
+
+@book{KroeningS16,
+  author    = {Daniel Kroening and Ofer Strichman},
+  title     = {Decision Procedures -- An Algorithmic Point of View, Second Edition},
+  series    = {Texts in Theoretical Computer Science. An {EATCS} Series},
+  publisher = {Springer},
+  year      = {2016}
+}
+
+@techreport{SMTLIB26,
+  author      = {Clark Barrett and Pascal Fontaine and Cesare Tinelli},
+  title       = {The {SMT-LIB} Standard: Version 2.6},
+  institution = {Department of Computer Science, The University of Iowa},
+  year        = {2017},
+  note        = {Available at \url{www.SMT-LIB.org}}
+}
+
+@article{NelsonO79,
+  author  = {Greg Nelson and Derek C. Oppen},
+  title   = {Simplification by Cooperating Decision Procedures},
+  journal = {ACM Transactions on Programming Languages and Systems},
+  volume  = {1},
+  number  = {2},
+  pages   = {245--257},
+  year    = {1979}
+}
+
+@article{Sebastiani07,
+  author  = {Roberto Sebastiani},
+  title   = {Lazy Satisfiability Modulo Theories},
+  journal = {Journal on Satisfiability, Boolean Modeling and Computation},
+  volume  = {3},
+  number  = {3-4},
+  pages   = {141--224},
+  year    = {2007}
+}
+
+% ---------------------------------------------------------------------------
+% The paper this work is based on
+% ---------------------------------------------------------------------------
+
+@inproceedings{Sebastiani16,
+  author    = {Roberto Sebastiani},
+  title     = {Colors Make Theories Hard},
+  booktitle = {Automated Reasoning -- 8th International Joint Conference, {IJCAR} 2016},
+  series    = {Lecture Notes in Computer Science},
+  volume    = {9706},
+  pages     = {168--176},
+  publisher = {Springer},
+  year      = {2016}
+}
+
+@techreport{Sebastiani16ext,
+  author      = {Roberto Sebastiani},
+  title       = {Colors Make Theories Hard (Extended Version)},
+  institution = {DISI, University of Trento},
+  number      = {DISI-16-001},
+  year        = {2016}
+}
+
+% ---------------------------------------------------------------------------
+% Solvers
+% ---------------------------------------------------------------------------
+
+@inproceedings{cvc5,
+  author    = {Haniel Barbosa and Clark W. Barrett and Martin Brain and Gereon Kremer and Hanna Lachnitt and Makai Mann and Abdalrhman Mohamed and Mudathir Mohamed and Aina Niemetz and Andres N{\"o}tzli and Alex Ozdemir and Mathias Preiner and Andrew Reynolds and Ying Sheng and Cesare Tinelli and Yoni Zohar},
+  title     = {cvc5: A Versatile and Industrial-Strength {SMT} Solver},
+  booktitle = {Tools and Algorithms for the Construction and Analysis of Systems, {TACAS} 2022},
+  series    = {Lecture Notes in Computer Science},
+  volume    = {13243},
+  pages     = {415--442},
+  publisher = {Springer},
+  year      = {2022}
+}
+
+@inproceedings{z3,
+  author    = {Leonardo Mendon{\c{c}}a de Moura and Nikolaj Bj{\o}rner},
+  title     = {{Z3}: An Efficient {SMT} Solver},
+  booktitle = {Tools and Algorithms for the Construction and Analysis of Systems, {TACAS} 2008},
+  series    = {Lecture Notes in Computer Science},
+  volume    = {4963},
+  pages     = {337--340},
+  publisher = {Springer},
+  year      = {2008}
+}
+
+@inproceedings{dreal,
+  author    = {Sicun Gao and Soonho Kong and Edmund M. Clarke},
+  title     = {{dReal}: An {SMT} Solver for Nonlinear Theories over the Reals},
+  booktitle = {Automated Deduction -- {CADE-24}},
+  series    = {Lecture Notes in Computer Science},
+  volume    = {7898},
+  pages     = {208--214},
+  publisher = {Springer},
+  year      = {2013}
+}
+
+@inproceedings{smtswitch,
+  author    = {Makai Mann and Amalee Wilson and Yoni Zohar and Lindsey Stuntz and Ahmed Irfan and Kristopher Brown and Caleb Donovick and Allison Guman and Cesare Tinelli and Clark W. Barrett},
+  title     = {Smt-Switch: A Solver-Agnostic {C++} {API} for {SMT} Solving},
+  booktitle = {Theory and Applications of Satisfiability Testing, {SAT} 2021},
+  series    = {Lecture Notes in Computer Science},
+  volume    = {12831},
+  pages     = {377--386},
+  publisher = {Springer},
+  year      = {2021}
+}
+
+@inproceedings{ReynoldsTGK13,
+  author    = {Andrew Reynolds and Cesare Tinelli and Amit Goel and Sava Krsti{\'c}},
+  title     = {Finite Model Finding in {SMT}},
+  booktitle = {Computer Aided Verification, {CAV} 2013},
+  series    = {Lecture Notes in Computer Science},
+  volume    = {8044},
+  pages     = {640--655},
+  publisher = {Springer},
+  year      = {2013}
+}
+
+@inproceedings{LiangRTBD14,
+  author    = {Tianyi Liang and Andrew Reynolds and Cesare Tinelli and Clark W. Barrett and Morgan Deters},
+  title     = {A {DPLL(T)} Theory Solver for a Theory of Strings and Regular Expressions},
+  booktitle = {Computer Aided Verification, {CAV} 2014},
+  series    = {Lecture Notes in Computer Science},
+  volume    = {8559},
+  pages     = {646--662},
+  publisher = {Springer},
+  year      = {2014}
+}
+
+@inproceedings{OzdemirKTB23,
+  author    = {Alex Ozdemir and Gereon Kremer and Cesare Tinelli and Clark W. Barrett},
+  title     = {Satisfiability Modulo Finite Fields},
+  booktitle = {Computer Aided Verification, {CAV} 2023},
+  series    = {Lecture Notes in Computer Science},
+  volume    = {13965},
+  pages     = {163--186},
+  publisher = {Springer},
+  year      = {2023}
+}
+
+@inproceedings{ReynoldsISK16,
+  author    = {Andrew Reynolds and Radu Iosif and Cristina Serban and Tim King},
+  title     = {A Decision Procedure for Separation Logic in {SMT}},
+  booktitle = {Automated Technology for Verification and Analysis, {ATVA} 2016},
+  series    = {Lecture Notes in Computer Science},
+  volume    = {9938},
+  pages     = {244--261},
+  publisher = {Springer},
+  year      = {2016}
+}
+
+% ---------------------------------------------------------------------------
+% Graph coloring
+% ---------------------------------------------------------------------------
+
+@book{GareyJ79,
+  author    = {Michael R. Garey and David S. Johnson},
+  title     = {Computers and Intractability: A Guide to the Theory of {NP}-Completeness},
+  publisher = {W. H. Freeman and Company},
+  year      = {1979}
+}
+
+@incollection{Karp72,
+  author    = {Richard M. Karp},
+  title     = {Reducibility Among Combinatorial Problems},
+  booktitle = {Complexity of Computer Computations},
+  pages     = {85--103},
+  publisher = {Plenum Press},
+  year      = {1972}
+}
+
+@article{ChaitinACCHM81,
+  author  = {Gregory J. Chaitin and Marc A. Auslander and Ashok K. Chandra and John Cocke and Martin E. Hopkins and Peter W. Markstein},
+  title   = {Register Allocation via Coloring},
+  journal = {Computer Languages},
+  volume  = {6},
+  number  = {1},
+  pages   = {47--57},
+  year    = {1981}
+}
+
+@article{WelshP67,
+  author  = {D. J. A. Welsh and M. B. Powell},
+  title   = {An Upper Bound for the Chromatic Number of a Graph and its Application to Timetabling Problems},
+  journal = {The Computer Journal},
+  volume  = {10},
+  number  = {1},
+  pages   = {85--86},
+  year    = {1967}
+}
+
+@book{Lewis21,
+  author    = {R. M. R. Lewis},
+  title     = {A Guide to Graph Colouring: Algorithms and Applications},
+  edition   = {Second},
+  series    = {Texts in Computer Science},
+  publisher = {Springer},
+  year      = {2021}
+}
+
+@inproceedings{Chaitin82,
+  author    = {Gregory J. Chaitin},
+  title     = {Register Allocation \& Spilling via Graph Coloring},
+  booktitle = {Proceedings of the {SIGPLAN} '82 Symposium on Compiler Construction},
+  pages     = {98--105},
+  publisher = {ACM},
+  year      = {1982}
+}
+
+@article{Brelaz79,
+  author  = {Daniel Br{\'e}laz},
+  title   = {New Methods to Color the Vertices of a Graph},
+  journal = {Communications of the ACM},
+  volume  = {22},
+  number  = {4},
+  pages   = {251--256},
+  year    = {1979}
+}
+
+@article{Zykov49,
+  author  = {Alexander A. Zykov},
+  title   = {On Some Properties of Linear Complexes},
+  journal = {Matematicheskii Sbornik},
+  volume  = {24(66)},
+  number  = {2},
+  pages   = {163--188},
+  year    = {1949},
+  note    = {In Russian}
+}
+
+@article{Mycielski55,
+  author  = {Jan Mycielski},
+  title   = {Sur le coloriage des graphes},
+  journal = {Colloquium Mathematicum},
+  volume  = {3},
+  pages   = {161--162},
+  year    = {1955}
+}
+
+@book{JohnsonT96,
+  editor    = {David S. Johnson and Michael A. Trick},
+  title     = {Cliques, Coloring, and Satisfiability: Second {DIMACS} Implementation Challenge},
+  series    = {DIMACS Series in Discrete Mathematics and Theoretical Computer Science},
+  volume    = {26},
+  publisher = {American Mathematical Society},
+  year      = {1996}
+}
+
+@article{VanGelder08,
+  author  = {Allen Van Gelder},
+  title   = {Another Look at Graph Coloring via Propositional Satisfiability},
+  journal = {Discrete Applied Mathematics},
+  volume  = {156},
+  number  = {2},
+  pages   = {230--243},
+  year    = {2008}
+}
+
+@article{RamaniAMS06,
+  author  = {Arathi Ramani and Fadi A. Aloul and Igor L. Markov and Karem A. Sakallah},
+  title   = {Breaking Instance-Independent Symmetries in Exact Graph Coloring},
+  journal = {Journal of Artificial Intelligence Research},
+  volume  = {26},
+  pages   = {289--322},
+  year    = {2006}
+}
+
+@inproceedings{HebrardK18,
+  author    = {Emmanuel Hebrard and George Katsirelos},
+  title     = {Clause Learning and New Bounds for Graph Coloring},
+  booktitle = {Principles and Practice of Constraint Programming, {CP} 2018},
+  series    = {Lecture Notes in Computer Science},
+  volume    = {11008},
+  pages     = {179--194},
+  publisher = {Springer},
+  year      = {2018}
+}
+
+@article{Haken85,
+  author  = {Armin Haken},
+  title   = {The Intractability of Resolution},
+  journal = {Theoretical Computer Science},
+  volume  = {39},
+  pages   = {297--308},
+  year    = {1985}
+}
+
+@inproceedings{DeLoeraLMM08,
+  author    = {Jes{\'u}s A. De Loera and Jon Lee and Peter N. Malkin and Susan Margulies},
+  title     = {Hilbert's {Nullstellensatz} and an Algorithm for Proving Combinatorial Infeasibility},
+  booktitle = {Proceedings of the 21st International Symposium on Symbolic and Algebraic Computation, {ISSAC} 2008},
+  pages     = {197--206},
+  publisher = {ACM},
+  year      = {2008}
+}
+
+@misc{ortools,
+  author       = {Laurent Perron and Fr{\'e}d{\'e}ric Didier},
+  title        = {{CP-SAT}},
+  howpublished = {Google OR-Tools, \url{https://developers.google.com/optimization/cp/}},
+  year         = {2024}
+}
