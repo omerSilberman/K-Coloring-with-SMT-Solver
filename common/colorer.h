@@ -3,8 +3,10 @@
 // class from GraphColorer and implements the solver hooks; the encodings derive from that.
 #pragma once
 
+#include <fstream>
 #include <iostream>
 #include <memory>
+#include <stdexcept>
 #include <regex>
 #include <sstream>
 #include <string>
@@ -27,7 +29,8 @@ using namespace std;
 //   fix_color()                   the colors the strategies fixed (e.g. a clique's)
 // and then prints SAT/UNSAT/UNKNOWN and, with --model, "MODEL: node_1: ... node_2: ...",
 // the format benchmark.py and the GUI read. With --print-asserts it first prints every
-// assertion on its own "(assert ...)" line. With strategies, each one first prints a
+// assertion on its own "(assert ...)" line. With --dump-smt2 FILE it does not solve: it
+// writes the problem to FILE as an SMT-LIB benchmark and prints "SMT2 FILE". With strategies, each one first prints a
 // "STRATEGY name: ..." line and a "STRATEGY-JSON {...}" line, and the model is for the
 // original graph (removed nodes repaired).
 class GraphColorer {
@@ -41,6 +44,8 @@ protected:
     vector<pair<int, int>> edges;
     vector<pair<string, string>> solver_options;  // from --opt NAME=VALUE
     vector<string> strategy_specs;                // from --strategy NAME[:PARAMS]
+    string smt2_path;                             // from --dump-smt2 FILE
+    string smt2_status = "unknown";               // from --expected sat|unsat|unknown
 
 public:
     GraphColorer(int k, bool model, bool print) : K(k), produce_model(model), print_asserts(print) {}
@@ -57,6 +62,12 @@ public:
     // Solver options to set before the encoding configures the solver
     void set_solver_options(const vector<pair<string, string>>& options) { solver_options = options; }
     void set_strategies(const vector<string>& specs) { strategy_specs = specs; }
+    // Write the problem to path as an SMT-LIB benchmark instead of solving it.
+    // status is the expected answer, recorded as (set-info :status ...)
+    void set_smt2_dump(const string& path, const string& status) {
+        smt2_path = path;
+        smt2_status = status;
+    }
 
     // Whether the encoding has explicit colors, so a strategy can fix a node's color (and
     // repair removed nodes). Encodings that do also implement fix_color / color_value.
@@ -98,6 +109,15 @@ public:
             cout << "; -------------------------" << endl;
         }
 
+        if (!smt2_path.empty()) {
+            ofstream out(smt2_path);
+            write_smt2(out, smt2_status);
+            out.close();
+            if (!out) throw runtime_error("could not write " + smt2_path);
+            cout << "SMT2 " << smt2_path << endl;
+            return;
+        }
+
         switch (check()) {
         case Result::Sat:
             cout << "SAT" << endl;
@@ -126,6 +146,9 @@ protected:
     virtual void add_edge_constraints() = 0;
     virtual vector<string> assertions_as_text() = 0;  // one string per assertion, one line each
     virtual size_t num_assertions() = 0;
+    // Writes the whole problem as an SMT-LIB benchmark: options, logic, status,
+    // declarations, assertions and (check-sat)
+    virtual void write_smt2(ostream& out, const string& status) = 0;
     virtual Result check() = 0;
     virtual void print_model() = 0;                   // "node_i: <value> " for every node
     // Node `node` has color `color` (0..K-1), and that color's value as print_model prints

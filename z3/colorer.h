@@ -21,6 +21,9 @@ protected:
     vector<z3::expr> node_vars;
     vector<z3::expr> colors;  // the K color terms, for strategies (if supports_colors())
     optional<z3::model> last_model;  // after a SAT check
+    // What --dump-smt2 must repeat that the assertions do not show
+    string logic_name;
+    vector<pair<string, string>> options_set;
 
 public:
     Z3Colorer(int k, bool model, bool print) : GraphColorer(k, model, print), solver(ctx) {
@@ -34,12 +37,21 @@ protected:
     // A solver for an SMT-LIB logic ("ALL" = let Z3 choose)
     void set_logic(const string& logic) {
         solver = (logic == "ALL") ? z3::solver(ctx) : z3::solver(ctx, logic.c_str());
+        logic_name = logic;
     }
 
     // Z3 options are global parameters (e.g. smt.random_seed, sat.euf); they apply to
     // the solver configure_theory() creates next
     void set_solver_option(const string& name, const string& value) override {
         z3::set_param(name.c_str(), value.c_str());
+        options_set.push_back({name, value});
+    }
+
+    // Z3 prints the declarations, assertions and (check-sat) itself
+    void write_smt2(ostream& out, const string& status) override {
+        for (const auto& [name, value] : options_set) out << "(set-option :" << name << " " << value << ")\n";
+        if (!logic_name.empty()) out << "(set-logic " << logic_name << ")\n";
+        out << solver.to_smt2(status.c_str());
     }
     void graph_loaded() override { node_vars.assign(num_nodes + 1, ctx.bool_val(false)); }
 

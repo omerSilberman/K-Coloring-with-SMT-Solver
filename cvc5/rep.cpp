@@ -150,7 +150,7 @@ protected:
         solver.setLogic("QF_BV");
         // cvc5's default (lazy) bit-blasting gets stuck on this formula: on myciel4, K = 4
         // it had not answered after 100 s; eager bit-blasting answers in 0.1 s
-        solver.setOption("bitblast", "eager");
+        set_option("bitblast", "eager");
     }
     static uint32_t bits_for(int value) {
         uint32_t w = 1;

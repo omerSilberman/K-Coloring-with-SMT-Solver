@@ -1,5 +1,6 @@
 // The command line shared by every engine's binary:
 //   ./<program> <THEORY> <dimacs_file> <K> [--model] [--print-asserts] [--opt NAME=VALUE]...
+//               [--dump-smt2 FILE [--expected sat|unsat|unknown]]
 #pragma once
 
 #include <exception>
@@ -16,6 +17,17 @@ int run_cli(int argc, char** argv, const string& program, const string& engine, 
     vector<pair<string, string>> solver_options;
     vector<string> strategy_specs;
     vector<string> pos_args;
+    string smt2_path;
+    string smt2_status = "unknown";
+
+    // The value of an option given as "--name VALUE" or "--name=VALUE" (empty if missing)
+    auto option_value = [&](int& i, const string& arg, const string& name) -> string {
+        if (arg == name) return i + 1 < argc ? argv[++i] : "";
+        return arg.substr(name.size() + 1);
+    };
+    auto is_option = [](const string& arg, const string& name) {
+        return arg == name || arg.rfind(name + "=", 0) == 0;
+    };
 
     // Parse command line arguments
     for (int i = 1; i < argc; ++i) {
@@ -34,6 +46,9 @@ int run_cli(int argc, char** argv, const string& program, const string& engine, 
                 cout << "                     " << s.name << " (" << s.kind << ")"
                      << (s.parameters.empty() ? "" : ", parameters: " + s.parameters) << endl;
             }
+            cout << "  --dump-smt2 FILE Do not solve: write the problem to FILE as an SMT-LIB benchmark" << endl;
+            cout << "  --expected sat|unsat|unknown" << endl;
+            cout << "                   The answer to record in the benchmark (default: unknown)" << endl;
             cout << "  --list-json      Print the encodings and strategies as JSON, and exit" << endl;
             cout << "  --help, -h       Show this help message" << endl;
             registry.print_help(cout);
@@ -50,6 +65,18 @@ int run_cli(int argc, char** argv, const string& program, const string& engine, 
                 strategy_specs.push_back(argv[++i]);
             } else {
                 strategy_specs.push_back(arg.substr(11));
+            }
+        } else if (is_option(arg, "--dump-smt2")) {
+            smt2_path = option_value(i, arg, "--dump-smt2");
+            if (smt2_path.empty()) {
+                cerr << "Error: --dump-smt2 needs a file name." << endl;
+                return 1;
+            }
+        } else if (is_option(arg, "--expected")) {
+            smt2_status = option_value(i, arg, "--expected");
+            if (smt2_status != "sat" && smt2_status != "unsat" && smt2_status != "unknown") {
+                cerr << "Error: --expected must be sat, unsat or unknown." << endl;
+                return 1;
             }
         } else if (arg == "--model") {
             produce_model = true;
@@ -104,6 +131,7 @@ int run_cli(int argc, char** argv, const string& program, const string& engine, 
         }
         colorer->set_solver_options(solver_options);
         colorer->set_strategies(strategy_specs);
+        if (!smt2_path.empty()) colorer->set_smt2_dump(smt2_path, smt2_status);
         colorer->load_dimacs(filename);
         colorer->solve();
     } catch (const exception& e) {

@@ -31,13 +31,13 @@ public:
     bool supports_colors() const override { return true; }
 protected:
     void configure_theory() override {
-        solver.setOption("incremental", "false");  // cvc5 requires this for separation logic
+        set_option("incremental", "false");  // cvc5 requires this for separation logic
         solver.setLogic("ALL");
     }
     void build_variables_and_bounds() override {
         // The heap must be declared before the first assertion
         ElementDomain domain = element_theory->make_domain(tm, K + 1);
-        solver.declareSepHeap(domain.sort, domain.sort);
+        declare_sep_heap(domain.sort, domain.sort);
         assert_constraints(domain);
         data = domain.elements[0];
 
