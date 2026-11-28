@@ -46,6 +46,7 @@ protected:
     vector<string> strategy_specs;                // from --strategy NAME[:PARAMS]
     string smt2_path;                             // from --dump-smt2 FILE
     string smt2_status = "unknown";               // from --expected sat|unsat|unknown
+    bool smtlib_result = false;                   // from --smtlib-result
 
 public:
     GraphColorer(int k, bool model, bool print) : K(k), produce_model(model), print_asserts(print) {}
@@ -68,6 +69,9 @@ public:
         smt2_path = path;
         smt2_status = status;
     }
+    // Print the answer as sat / unsat / unknown, as SMT-LIB solvers do (the lab's cmpr.py
+    // reads only those), instead of SAT / UNSAT / UNKNOWN
+    void set_smtlib_result(bool on) { smtlib_result = on; }
 
     // Whether the encoding has explicit colors, so a strategy can fix a node's color (and
     // repair removed nodes). Encodings that do also implement fix_color / color_value.
@@ -120,7 +124,7 @@ public:
 
         switch (check()) {
         case Result::Sat:
-            cout << "SAT" << endl;
+            cout << answer("SAT") << endl;
             if (produce_model) {
                 cout << "MODEL: ";
                 if (with_strategies) print_repaired_model(plan);
@@ -129,10 +133,10 @@ public:
             }
             break;
         case Result::Unsat:
-            cout << "UNSAT" << endl;
+            cout << answer("UNSAT") << endl;
             break;
         case Result::Unknown:
-            cout << "UNKNOWN" << endl;
+            cout << answer("UNKNOWN") << endl;
             break;
         }
     }
@@ -183,13 +187,19 @@ private:
         }
     }
 
+    // SAT, UNSAT or UNKNOWN, lowercase with --smtlib-result
+    string answer(string word) const {
+        if (smtlib_result) for (char& c : word) c = (char)tolower((unsigned char)c);
+        return word;
+    }
+
     // An answer found without the solver; a SAT model numbers the colors 1..K
     void print_decided(const strategies::Plan& plan) {
         if (!*plan.decided) {
-            cout << "UNSAT" << endl;
+            cout << answer("UNSAT") << endl;
             return;
         }
-        cout << "SAT" << endl;
+        cout << answer("SAT") << endl;
         if (produce_model) {
             cout << "MODEL: ";
             for (int v = 1; v <= plan.original_nodes; v++) {

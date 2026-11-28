@@ -14,6 +14,7 @@ template <class Registry>
 int run_cli(int argc, char** argv, const string& program, const string& engine, const Registry& registry) {
     bool produce_model = false;
     bool print_asserts = false;
+    bool smtlib_result = false;
     vector<pair<string, string>> solver_options;
     vector<string> strategy_specs;
     vector<string> pos_args;
@@ -37,6 +38,7 @@ int run_cli(int argc, char** argv, const string& program, const string& engine, 
             cout << "Options:" << endl;
             cout << "  --model          Produce and print the coloring model if SAT" << endl;
             cout << "  --print-asserts  Print all asserted SMT formulas before solving" << endl;
+            cout << "  --smtlib-result  Print the answer as sat/unsat/unknown (for the cluster's cmpr.py)" << endl;
             cout << "  --opt NAME=VALUE Set a " << engine << " option (repeatable), e.g. --opt "
                  << (engine == "cvc5" ? "bitblast=eager" : "smt.random_seed=7") << endl;
             cout << "                   (NAME alone means NAME=true)" << endl;
@@ -82,6 +84,8 @@ int run_cli(int argc, char** argv, const string& program, const string& engine, 
             produce_model = true;
         } else if (arg == "--print-asserts") {
             print_asserts = true;
+        } else if (arg == "--smtlib-result") {
+            smtlib_result = true;
         } else if (arg == "--opt" || arg.rfind("--opt=", 0) == 0) {
             string option;
             if (arg == "--opt") {
@@ -132,6 +136,7 @@ int run_cli(int argc, char** argv, const string& program, const string& engine, 
         colorer->set_solver_options(solver_options);
         colorer->set_strategies(strategy_specs);
         if (!smt2_path.empty()) colorer->set_smt2_dump(smt2_path, smt2_status);
+        colorer->set_smtlib_result(smtlib_result);
         colorer->load_dimacs(filename);
         colorer->solve();
     } catch (const exception& e) {
